@@ -104,3 +104,5 @@ fn spawn_column(
         );
     }
 }
+
+// If there are two or more verticies at the exact same position, remove until there is only one
