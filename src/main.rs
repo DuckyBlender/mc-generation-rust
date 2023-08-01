@@ -46,13 +46,6 @@ enum BlockFace {
     Back,
 }
 
-#[derive(Clone, Debug)]
-struct Block {
-    block_type: BlockType,
-    air_intersections: Vec<BlockFace>,
-    block_position: IVec3,
-}
-
 fn main() {
     App::new()
         .insert_resource(Msaa::Sample4)
@@ -81,9 +74,9 @@ fn setup(
 
     // Spawn chunks
     // For now only one chunk
-    for x in 0..1 {
+    for x in 0..10 {
         for y in 0..1 {
-            for z in 0..1 {
+            for z in 0..10 {
                 let chunk_mesh_handle: Handle<Mesh> =
                     meshes.add(create_chunk_mesh(IVec3::new(x, y, z)));
 
@@ -326,6 +319,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
             }
         }
     }
+
     // From now on, we don't need the chunk position anymore, so we can just use the local block position.
     // Now that the chunk data is generated, check the neighbouring blocks to see if we need to create faces.
     // Loop over each block position in the chunk.
@@ -354,6 +348,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                             &mut indices,
                             &mut normals,
                             &mut uvs,
+                            IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
                             [x as f32, y as f32, z as f32],
                             BlockFace::Top,
                         );
@@ -371,6 +366,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                                 &mut indices,
                                 &mut normals,
                                 &mut uvs,
+                                IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
                                 [x as f32, y as f32, z as f32],
                                 BlockFace::Bottom,
                             );
@@ -389,6 +385,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                                 &mut indices,
                                 &mut normals,
                                 &mut uvs,
+                                IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
                                 [x as f32, y as f32, z as f32],
                                 BlockFace::Right,
                             );
@@ -407,6 +404,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                                 &mut indices,
                                 &mut normals,
                                 &mut uvs,
+                                IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
                                 [x as f32, y as f32, z as f32],
                                 BlockFace::Left,
                             );
@@ -425,6 +423,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                                 &mut indices,
                                 &mut normals,
                                 &mut uvs,
+                                IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
                                 [x as f32, y as f32, z as f32],
                                 BlockFace::Front,
                             );
@@ -443,6 +442,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                                 &mut indices,
                                 &mut normals,
                                 &mut uvs,
+                                IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
                                 [x as f32, y as f32, z as f32],
                                 BlockFace::Back,
                             );
@@ -481,9 +481,17 @@ fn create_face(
     indices: &mut Vec<u32>,
     normals: &mut Vec<[f32; 3]>,
     uvs: &mut Vec<[f32; 2]>,
+    chunk_position: IVec3,
     position: [f32; 3],
     direction: BlockFace,
 ) {
+    // Offset the position of the face based on the chunk position.
+    let position = [
+        position[0] + chunk_position.x as f32 * CHUNK_SIZE as f32,
+        position[1] + chunk_position.y as f32 * CHUNK_SIZE as f32,
+        position[2] + chunk_position.z as f32 * CHUNK_SIZE as f32,
+    ];
+
     // The index of the first vertex of this face.
     let first_vertex = vertices.len() as u32;
 
@@ -498,42 +506,44 @@ fn create_face(
     };
 
     // The vertices of the face.
+    // Bevy has backface culling enabled by default. This means that the vertices need to be in clockwise order. If a face is not showing up, this is probably the reason. (this took me so long)
     let face_vertices = match direction {
         BlockFace::Top => [
             [position[0], position[1] + 1.0, position[2]],
-            [position[0] + 1.0, position[1] + 1.0, position[2]],
-            [position[0] + 1.0, position[1] + 1.0, position[2] + 1.0],
             [position[0], position[1] + 1.0, position[2] + 1.0],
+            [position[0] + 1.0, position[1] + 1.0, position[2] + 1.0],
+            [position[0] + 1.0, position[1] + 1.0, position[2]],
         ],
         BlockFace::Bottom => [
+            [position[0], position[1], position[2] + 1.0],
             [position[0], position[1], position[2]],
             [position[0] + 1.0, position[1], position[2]],
             [position[0] + 1.0, position[1], position[2] + 1.0],
-            [position[0], position[1], position[2] + 1.0],
         ],
+
         BlockFace::Left => [
+            [position[0], position[1] + 1.0, position[2]],
             [position[0], position[1], position[2]],
             [position[0], position[1], position[2] + 1.0],
             [position[0], position[1] + 1.0, position[2] + 1.0],
-            [position[0], position[1] + 1.0, position[2]],
         ],
         BlockFace::Right => [
-            [position[0] + 1.0, position[1], position[2]],
-            [position[0] + 1.0, position[1], position[2] + 1.0],
             [position[0] + 1.0, position[1] + 1.0, position[2] + 1.0],
+            [position[0] + 1.0, position[1], position[2] + 1.0],
+            [position[0] + 1.0, position[1], position[2]],
             [position[0] + 1.0, position[1] + 1.0, position[2]],
         ],
         BlockFace::Front => [
-            [position[0], position[1], position[2] + 1.0],
-            [position[0] + 1.0, position[1], position[2] + 1.0],
             [position[0] + 1.0, position[1] + 1.0, position[2] + 1.0],
             [position[0], position[1] + 1.0, position[2] + 1.0],
+            [position[0], position[1], position[2] + 1.0],
+            [position[0] + 1.0, position[1], position[2] + 1.0],
         ],
         BlockFace::Back => [
-            [position[0], position[1], position[2]],
-            [position[0] + 1.0, position[1], position[2]],
-            [position[0] + 1.0, position[1] + 1.0, position[2]],
             [position[0], position[1] + 1.0, position[2]],
+            [position[0] + 1.0, position[1] + 1.0, position[2]],
+            [position[0] + 1.0, position[1], position[2]],
+            [position[0], position[1], position[2]],
         ],
     };
 
@@ -544,7 +554,7 @@ fn create_face(
     // Add the UV coordinates to the vector.
     uvs.extend_from_slice(&[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]);
 
-    // Add the indices to the vector.
+    // Add the indices to the vector. This is clockwise order.
     indices.extend_from_slice(&[
         first_vertex,
         first_vertex + 1,
