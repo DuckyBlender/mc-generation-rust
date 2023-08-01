@@ -8,7 +8,9 @@ use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use noise::{NoiseFn, Perlin};
 
 const SEED: u32 = 2137;
-const CHUNK_SIZE: u8 = 16;
+const CHUNK_SIZE: usize = 16;
+const WORLD_SCALE: f64 = 0.1;
+const NOISE_THRESHOLD: f64 = 0.3;
 
 // Define a "marker" component to mark the custom mesh. Marker components are often used in Bevy for
 // filtering entities in queries with With, they're usually not queried directly since they don't contain information within them.
@@ -18,7 +20,7 @@ struct CustomUV;
 #[derive(Component)]
 struct Chunk;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 enum BlockType {
     Air,
     Dirt,
@@ -108,6 +110,10 @@ fn input_handler(
     mut query: Query<&mut Transform, With<CustomUV>>,
     time: Res<Time>,
 ) {
+    if keyboard_input.pressed(KeyCode::Space) {
+        // Create chunk at 0,0,0
+        create_chunk_mesh(IVec3::new(0, 0, 0));
+    }
     if keyboard_input.pressed(KeyCode::X) {
         for mut transform in &mut query {
             transform.rotate_x(time.delta_seconds() / 1.2);
@@ -256,8 +262,53 @@ fn create_cube_mesh() -> Mesh {
 }
 
 /// Creates a 32x32x32 chunk mesh using 3D Perlin noise.
+///
 /// The mesh is created by sampling the noise function at each vertex position.
 /// If the noise value is above a certain threshold, a cube is created at that position.
-fn create_chunk_mesh() -> Mesh {
+/// The chunk_position vec3 is the position of the chunk in the world. It is scaled down by the chunk size.
+fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
+    // Create a new mesh.
+    let mut chunk_mesh = Mesh::new(PrimitiveTopology::TriangleList);
+
+    // Generate a 3d array of BlockTypes, representing whether a cube should be created at that position.
+    let mut chunk_data = [[[BlockType::Air; CHUNK_SIZE]; CHUNK_SIZE]; CHUNK_SIZE];
+
+    // Create a 3D Perlin noise function with a random seed.
+    let perlin = Perlin::new(SEED);
+
+    // Loop over each block position in the chunk.
+    // Remember to offset the position by the chunk position.
+    for x in 0..CHUNK_SIZE {
+        for y in 0..CHUNK_SIZE {
+            for z in 0..CHUNK_SIZE {
+                // Scale the position down by the chunk size.
+                let scaled_x = x as i32 + (chunk_position.x * CHUNK_SIZE as i32);
+                let scaled_y = y as i32 + (chunk_position.y * CHUNK_SIZE as i32);
+                let scaled_z = z as i32 + (chunk_position.z * CHUNK_SIZE as i32);
+                info!("Scaled position: {}, {}, {}", scaled_x, scaled_y, scaled_z);
+
+                // Sample the noise function at the scaled position.
+                // The perlin noise needs a float value, so we need to cast the scaled position to a float.
+                //
+                let noise_value = perlin.get([
+                    scaled_x as f64 * WORLD_SCALE,
+                    scaled_y as f64 * WORLD_SCALE,
+                    scaled_z as f64 * WORLD_SCALE,
+                ]);
+
+                // If the noise value is above the threshold, create a cube at that position.
+                if noise_value > NOISE_THRESHOLD {
+                    chunk_data[x][y][z] = BlockType::Dirt;
+                }
+
+                // Now the chunk data is generated, we can create the mesh.
+                // Check the neighbouring blocks. We don't want to create faces for blocks that are hidden.
+            }
+        }
+    }
+
+    // Debug print the chunk data.
+    info!("{:?}", chunk_data);
+
     todo!();
 }
