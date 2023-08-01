@@ -49,7 +49,6 @@ enum BlockFace {
 #[derive(Clone, Debug)]
 struct Block {
     block_type: BlockType,
-    block_intersections: Vec<BlockFace>,
     air_intersections: Vec<BlockFace>,
     block_position: IVec3,
 }
@@ -303,14 +302,12 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                 if noise_value > NOISE_THRESHOLD {
                     chunk_data.push(Block {
                         block_type: BlockType::Dirt,
-                        block_intersections: Vec::new(),
                         air_intersections: Vec::new(),
                         block_position: IVec3::new(scaled_x, scaled_y, scaled_z),
                     });
                 } else {
                     chunk_data.push(Block {
                         block_type: BlockType::Air,
-                        block_intersections: Vec::new(),
                         air_intersections: Vec::new(),
                         block_position: IVec3::new(scaled_x, scaled_y, scaled_z),
                     });
@@ -335,10 +332,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                 // Check the block above the current block.
                 if y < CHUNK_SIZE - 1 {
                     let above_block = &chunk_data[index + CHUNK_SIZE];
-                    if above_block.block_type != BlockType::Air {
-                        // Update the block_intersections of the current block.
-                        chunk_data[index].block_intersections.push(BlockFace::Top);
-                    } else {
+                    if above_block.block_type == BlockType::Air {
                         // Update the air_intersections of the current block.
                         chunk_data[index].air_intersections.push(BlockFace::Top);
                     }
@@ -347,12 +341,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                 // Check the block below the current block.
                 if y > 0 {
                     let below_block = &chunk_data[index - CHUNK_SIZE];
-                    if below_block.block_type != BlockType::Air {
-                        // Update the block_intersections of the current block.
-                        chunk_data[index]
-                            .block_intersections
-                            .push(BlockFace::Bottom);
-                    } else {
+                    if below_block.block_type == BlockType::Air {
                         // Update the air_intersections of the current block.
                         chunk_data[index].air_intersections.push(BlockFace::Bottom);
                     }
@@ -360,11 +349,9 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
 
                 // Check the block to the left of the current block.
                 if x > 0 {
-                    let left_block = &chunk_data[index - 1];
-                    if left_block.block_type != BlockType::Air {
-                        // Update the block_intersections of the current block.
-                        chunk_data[index].block_intersections.push(BlockFace::Left);
-                    } else {
+                    let left_index = (x - 1) + (y * CHUNK_SIZE) + (z * CHUNK_SIZE * CHUNK_SIZE);
+                    let left_block = &chunk_data[left_index];
+                    if left_block.block_type == BlockType::Air {
                         // Update the air_intersections of the current block.
                         chunk_data[index].air_intersections.push(BlockFace::Left);
                     }
@@ -373,10 +360,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                 // Check the block to the right of the current block.
                 if x < CHUNK_SIZE - 1 {
                     let right_block = &chunk_data[index + 1];
-                    if right_block.block_type != BlockType::Air {
-                        // Update the block_intersections of the current block.
-                        chunk_data[index].block_intersections.push(BlockFace::Right);
-                    } else {
+                    if right_block.block_type == BlockType::Air {
                         // Update the air_intersections of the current block.
                         chunk_data[index].air_intersections.push(BlockFace::Right);
                     }
@@ -385,10 +369,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                 // Check the block in front of the current block.
                 if z < CHUNK_SIZE - 1 {
                     let front_block = &chunk_data[index + CHUNK_SIZE * CHUNK_SIZE];
-                    if front_block.block_type != BlockType::Air {
-                        // Update the block_intersections of the current block.
-                        chunk_data[index].block_intersections.push(BlockFace::Front);
-                    } else {
+                    if front_block.block_type == BlockType::Air {
                         // Update the air_intersections of the current block.
                         chunk_data[index].air_intersections.push(BlockFace::Front);
                     }
@@ -397,10 +378,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                 // Check the block behind the current block.
                 if z > 0 {
                     let back_block = &chunk_data[index - CHUNK_SIZE * CHUNK_SIZE];
-                    if back_block.block_type != BlockType::Air {
-                        // Update the block_intersections of the current block.
-                        chunk_data[index].block_intersections.push(BlockFace::Back);
-                    } else {
+                    if back_block.block_type == BlockType::Air {
                         // Update the air_intersections of the current block.
                         chunk_data[index].air_intersections.push(BlockFace::Back);
                     }
@@ -767,7 +745,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
     // Count average intersections.
     let mut total_intersections = 0;
     for block in &chunk_data {
-        total_intersections += block.block_intersections.len();
+        total_intersections += block.air_intersections.len();
     }
     info!(
         "Average intersections: {}",
@@ -776,7 +754,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
     // Count total intersections for all sides
     let (mut top, mut bottom, mut left, mut right, mut front, mut back) = (0, 0, 0, 0, 0, 0);
     for block in &chunk_data {
-        for intersection in &block.block_intersections {
+        for intersection in &block.air_intersections {
             match intersection {
                 BlockFace::Top => top += 1,
                 BlockFace::Bottom => bottom += 1,
@@ -788,7 +766,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
         }
     }
     info!(
-        "Intersections: T: {}, B: {}, L: {}, R: {}, F: {}, B: {}",
+        "Air Intersections: T: {}, B: {}, L: {}, R: {}, F: {}, B: {}",
         top, bottom, left, right, front, back
     );
 
@@ -866,20 +844,8 @@ fn chunk_border(
         Color::rgb(1.0, 0.0, 0.0),
     );
     lines.line_colored(
-        [x2 as f32, y2 as f32, z1 as f32].into(),
+        [x2 as f32, y1 as f32, z2 as f32].into(),
         [x2 as f32, y2 as f32, z2 as f32].into(),
-        1.0,
-        Color::rgb(1.0, 0.0, 0.0),
-    );
-    lines.line_colored(
-        [x2 as f32, y2 as f32, z1 as f32].into(),
-        [x2 as f32, y1 as f32, z1 as f32].into(),
-        1.0,
-        Color::rgb(1.0, 0.0, 0.0),
-    );
-    lines.line_colored(
-        [x2 as f32, y2 as f32, z1 as f32].into(),
-        [x1 as f32, y2 as f32, z1 as f32].into(),
         1.0,
         Color::rgb(1.0, 0.0, 0.0),
     );
