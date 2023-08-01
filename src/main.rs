@@ -450,9 +450,9 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
         // Get the index of the current block.
         let mut index = vertices.len() as u32;
 
-        // Create a face for each block intersection.
-        for block_intersection in block_intersections {
-            match block_intersection {
+        // Create a face for each air intersection.
+        for air_intersection in air_intersections {
+            match air_intersection {
                 BlockFace::Top => {
                     // Create the vertices for the top face.
                     vertices.push([
@@ -792,18 +792,16 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
     chunk_mesh
 }
 
-fn update_fps(
-    time: Res<Time>,
-    diagnostics: Res<DiagnosticsStore>,
-    mut query: Query<&mut Text, With<TextChanges>>,
-) {
+fn update_fps(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, With<TextChanges>>) {
     // Update the FPS counter.
     let mut fps_text = query.single_mut();
+
     let mut fps = 0.0;
     if let Some(fps_diagnostic) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
         if let Some(fps_smoothed) = fps_diagnostic.smoothed() {
             fps = fps_smoothed;
         }
     }
+
     fps_text.sections[0].value = format!("FPS: {:.2}", fps);
 }
