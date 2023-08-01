@@ -1,3 +1,4 @@
+use std::default;
 use std::f32::consts::PI;
 
 use bevy::prelude::*;
@@ -24,6 +25,23 @@ struct Chunk;
 enum BlockType {
     Air,
     Dirt,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum BlockFace {
+    Top,
+    Bottom,
+    Left,
+    Right,
+    Front,
+    Back,
+}
+
+#[derive(Clone, Debug)]
+struct Block {
+    block_type: BlockType,
+    block_intersections: Vec<BlockFace>,
+    block_position: IVec3,
 }
 
 fn main() {
@@ -105,8 +123,8 @@ fn setup(
 // check out examples/input/ for more examples about user input.
 fn input_handler(
     keyboard_input: Res<Input<KeyCode>>,
-    mesh_query: Query<&Handle<Mesh>, With<CustomUV>>,
-    mut meshes: ResMut<Assets<Mesh>>,
+    // mesh_query: Query<&Handle<Mesh>, With<CustomUV>>,
+    // mut meshes: ResMut<Assets<Mesh>>,
     mut query: Query<&mut Transform, With<CustomUV>>,
     time: Res<Time>,
 ) {
@@ -270,8 +288,8 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
     // Create a new mesh.
     let mut chunk_mesh = Mesh::new(PrimitiveTopology::TriangleList);
 
-    // Generate a 3d array of BlockTypes, representing whether a cube should be created at that position.
-    let mut chunk_data = [[[BlockType::Air; CHUNK_SIZE]; CHUNK_SIZE]; CHUNK_SIZE];
+    // Generate a vector of Blocks, representing whether a cube should be created at that position.
+    let mut chunk_data: Vec<Block> = Vec::new();
 
     // Create a 3D Perlin noise function with a random seed.
     let perlin = Perlin::new(SEED);
@@ -285,11 +303,10 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                 let scaled_x = x as i32 + (chunk_position.x * CHUNK_SIZE as i32);
                 let scaled_y = y as i32 + (chunk_position.y * CHUNK_SIZE as i32);
                 let scaled_z = z as i32 + (chunk_position.z * CHUNK_SIZE as i32);
-                info!("Scaled position: {}, {}, {}", scaled_x, scaled_y, scaled_z);
+                // info!("Scaled position: {}, {}, {}", scaled_x, scaled_y, scaled_z);
 
                 // Sample the noise function at the scaled position.
                 // The perlin noise needs a float value, so we need to cast the scaled position to a float.
-                //
                 let noise_value = perlin.get([
                     scaled_x as f64 * WORLD_SCALE,
                     scaled_y as f64 * WORLD_SCALE,
@@ -298,17 +315,145 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
 
                 // If the noise value is above the threshold, create a cube at that position.
                 if noise_value > NOISE_THRESHOLD {
-                    chunk_data[x][y][z] = BlockType::Dirt;
+                    chunk_data.push(Block {
+                        block_type: BlockType::Dirt,
+                        block_intersections: Vec::new(),
+                        block_position: IVec3::new(scaled_x, scaled_y, scaled_z),
+                    });
+                } else {
+                    chunk_data.push(Block {
+                        block_type: BlockType::Air,
+                        block_intersections: Vec::new(),
+                        block_position: IVec3::new(scaled_x, scaled_y, scaled_z),
+                    });
+                }
+            }
+        }
+    }
+    // Now that the chunk data is generated, check the neighbouring blocks to see if we need to create faces.
+    for x in 0..CHUNK_SIZE {
+        for y in 0..CHUNK_SIZE {
+            for z in 0..CHUNK_SIZE {
+                // Get the index of the current block.
+                let index = x + (y * CHUNK_SIZE) + (z * CHUNK_SIZE * CHUNK_SIZE);
+
+                // Get the block at the current index.
+                let current_block = &chunk_data[index];
+
+                if current_block.block_type == BlockType::Air {
+                    continue;
                 }
 
-                // Now the chunk data is generated, we can create the mesh.
-                // Check the neighbouring blocks. We don't want to create faces for blocks that are hidden.
+                // #[derive(PartialEq, Debug, Copy, Clone)]
+                // enum BlockType {
+                //     Air,
+                //     Dirt,
+                // }
+
+                // #[derive(Clone, Copy, Debug)]
+                // enum BlockFace {
+                //     Top,
+                //     Bottom,
+                //     Left,
+                //     Right,
+                //     Front,
+                //     Back,
+                // }
+
+                // #[derive(Clone, Debug)]
+                // struct Block {
+                //     block_type: BlockType,
+                //     block_intersections: Vec<BlockFace>,
+                //     block_position: IVec3,
+                // }
+
+                // Check the block above the current block.
+                if y < CHUNK_SIZE - 1 {
+                    let above_block = &chunk_data[index + CHUNK_SIZE];
+                    if above_block.block_type != BlockType::Air {
+                        // Update the block_intersections of the current block.
+                        // Update, don't overwrite, because there might be multiple blocks intersecting.
+                        chunk_data[index].block_intersections.push(BlockFace::Top);
+                    }
+                }
+
+                // Check the block below the current block.
+                if y > 0 {
+                    let below_block = &chunk_data[index - CHUNK_SIZE];
+                    if below_block.block_type != BlockType::Air {
+                        // Update the block_intersections of the current block.
+                        // Update, don't overwrite, because there might be multiple blocks intersecting.
+                        chunk_data[index]
+                            .block_intersections
+                            .push(BlockFace::Bottom);
+                    }
+                }
+
+                // Check the block to the left of the current block.
+                if x > 0 {
+                    let left_block = &chunk_data[index - 1];
+                    if left_block.block_type != BlockType::Air {
+                        // Update the block_intersections of the current block.
+                        // Update, don't overwrite, because there might be multiple blocks intersecting.
+                        chunk_data[index].block_intersections.push(BlockFace::Left);
+                    }
+                }
+
+                // Check the block to the right of the current block.
+                if x < CHUNK_SIZE - 1 {
+                    let right_block = &chunk_data[index + 1];
+                    if right_block.block_type != BlockType::Air {
+                        // Update the block_intersections of the current block.
+                        // Update, don't overwrite, because there might be multiple blocks intersecting.
+                        chunk_data[index].block_intersections.push(BlockFace::Right);
+                    }
+                }
+
+                // Check the block in front of the current block.
+                if z < CHUNK_SIZE - 1 {
+                    let front_block = &chunk_data[index + CHUNK_SIZE * CHUNK_SIZE];
+                    if front_block.block_type != BlockType::Air {
+                        // Update the block_intersections of the current block.
+                        // Update, don't overwrite, because there might be multiple blocks intersecting.
+                        chunk_data[index].block_intersections.push(BlockFace::Front);
+                    }
+                }
+
+                // Check the block behind the current block.
+                if z > 0 {
+                    let back_block = &chunk_data[index - CHUNK_SIZE * CHUNK_SIZE];
+                    if back_block.block_type != BlockType::Air {
+                        // Update the block_intersections of the current block.
+                        // Update, don't overwrite, because there might be multiple blocks intersecting.
+                        chunk_data[index].block_intersections.push(BlockFace::Back);
+                    }
+                }
             }
         }
     }
 
     // Debug print the chunk data.
-    info!("{:?}", chunk_data);
+    // info!("{:?}", chunk_data);
+    // Count the amount of Air and Dirt blocks.
+    let mut air_blocks = 0;
+    let mut dirt_blocks = 0;
+    for block in &chunk_data {
+        match block.block_type {
+            BlockType::Air => air_blocks += 1,
+            BlockType::Dirt => dirt_blocks += 1,
+        }
+    }
+    info!("Air blocks: {}", air_blocks);
+    info!("Dirt blocks: {}", dirt_blocks);
+    // Count average intersections.
+    let mut total_intersections = 0;
+    for block in &chunk_data {
+        total_intersections += block.block_intersections.len();
+    }
+    info!(
+        "Average intersections: {}",
+        total_intersections as f64 / chunk_data.len() as f64
+    );
 
     todo!();
 }
