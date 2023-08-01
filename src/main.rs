@@ -7,6 +7,7 @@ use bevy::render::mesh::VertexAttributeValues;
 use bevy::render::render_resource::PrimitiveTopology;
 use bevy_flycam::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use bevy_prototype_debug_lines::*;
 use noise::{NoiseFn, Perlin};
 
 const SEED: u32 = 2137;
@@ -22,6 +23,9 @@ struct CustomUV;
 // For FPS counter
 #[derive(Component)]
 struct TextChanges;
+
+#[derive(Component)]
+struct ChunkBorder;
 
 #[derive(Component)]
 struct Chunk;
@@ -56,8 +60,11 @@ fn main() {
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(NoCameraPlayerPlugin)
+        .add_plugins(FrameTimeDiagnosticsPlugin)
+        .add_plugins(DebugLinesPlugin::default())
         // Systems
         .add_systems(Startup, setup)
+        .add_systems(Update, chunk_border)
         .add_systems(Update, bevy::window::close_on_esc)
         .add_systems(Update, update_fps)
         .run();
@@ -441,9 +448,6 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
         // Get the position of the current block.
         let block_position = block.block_position;
 
-        // Get the block intersections of the current block.
-        let block_intersections = &block.block_intersections;
-
         // Get the air intersections of the current block.
         let air_intersections = &block.air_intersections;
 
@@ -461,21 +465,20 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                         block_position.z as f32,
                     ]);
                     vertices.push([
-                        block_position.x as f32 + 1.0,
-                        block_position.y as f32 + 1.0,
-                        block_position.z as f32,
-                    ]);
-                    vertices.push([
-                        block_position.x as f32 + 1.0,
-                        block_position.y as f32 + 1.0,
-                        block_position.z as f32 + 1.0,
-                    ]);
-                    vertices.push([
                         block_position.x as f32,
                         block_position.y as f32 + 1.0,
                         block_position.z as f32 + 1.0,
                     ]);
-
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32 + 1.0,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32,
+                    ]);
                     // Create the indices for the top face.
                     indices.push(index);
                     indices.push(index + 1);
@@ -496,7 +499,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                     uvs.push([1.0, 1.0]);
                     uvs.push([0.0, 1.0]);
 
-                    // Update the index.
+                    // Update the index for the next face.
                     index += 4;
                 }
                 BlockFace::Bottom => {
@@ -504,22 +507,22 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                     vertices.push([
                         block_position.x as f32,
                         block_position.y as f32,
-                        block_position.z as f32,
-                    ]);
-                    vertices.push([
-                        block_position.x as f32 + 1.0,
-                        block_position.y as f32,
-                        block_position.z as f32,
+                        block_position.z as f32 + 1.0,
                     ]);
                     vertices.push([
                         block_position.x as f32 + 1.0,
                         block_position.y as f32,
                         block_position.z as f32 + 1.0,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32,
+                        block_position.z as f32,
                     ]);
                     vertices.push([
                         block_position.x as f32,
                         block_position.y as f32,
-                        block_position.z as f32 + 1.0,
+                        block_position.z as f32,
                     ]);
 
                     // Create the indices for the bottom face.
@@ -551,22 +554,22 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                     vertices.push([
                         block_position.x as f32,
                         block_position.y as f32,
-                        block_position.z as f32,
-                    ]);
-                    vertices.push([
-                        block_position.x as f32,
-                        block_position.y as f32 + 1.0,
-                        block_position.z as f32,
+                        block_position.z as f32 + 1.0,
                     ]);
                     vertices.push([
                         block_position.x as f32,
                         block_position.y as f32 + 1.0,
                         block_position.z as f32 + 1.0,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32,
                     ]);
                     vertices.push([
                         block_position.x as f32,
                         block_position.y as f32,
-                        block_position.z as f32 + 1.0,
+                        block_position.z as f32,
                     ]);
 
                     // Create the indices for the left face.
@@ -646,18 +649,18 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                         block_position.z as f32,
                     ]);
                     vertices.push([
-                        block_position.x as f32 + 1.0,
-                        block_position.y as f32,
-                        block_position.z as f32,
-                    ]);
-                    vertices.push([
-                        block_position.x as f32 + 1.0,
-                        block_position.y as f32 + 1.0,
-                        block_position.z as f32,
-                    ]);
-                    vertices.push([
                         block_position.x as f32,
                         block_position.y as f32 + 1.0,
+                        block_position.z as f32,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32,
                         block_position.z as f32,
                     ]);
 
@@ -692,18 +695,18 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                         block_position.z as f32 + 1.0,
                     ]);
                     vertices.push([
-                        block_position.x as f32 + 1.0,
-                        block_position.y as f32 + 1.0,
-                        block_position.z as f32 + 1.0,
-                    ]);
-                    vertices.push([
-                        block_position.x as f32 + 1.0,
-                        block_position.y as f32,
-                        block_position.z as f32 + 1.0,
-                    ]);
-                    vertices.push([
                         block_position.x as f32,
                         block_position.y as f32,
+                        block_position.z as f32 + 1.0,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32,
+                        block_position.z as f32 + 1.0,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32 + 1.0,
                         block_position.z as f32 + 1.0,
                     ]);
 
@@ -790,6 +793,96 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
     );
 
     chunk_mesh
+}
+
+fn chunk_border(
+    // chunk_position: IVec3,
+    // chunk_borders: Query<&ChunkBorder>,
+    mut lines: ResMut<DebugLines>,
+) {
+    // Draw a "box" around the selected chunk.
+    // Determine the coordinates
+    let x1 = CHUNK_SIZE as i32;
+    let y1 = CHUNK_SIZE as i32;
+    let z1 = CHUNK_SIZE as i32;
+
+    let x2 = x1 - CHUNK_SIZE as i32;
+    let y2 = y1 - CHUNK_SIZE as i32;
+    let z2 = z1 - CHUNK_SIZE as i32;
+
+    // Draw the lines.
+    lines.line_colored(
+        [x1 as f32, y1 as f32, z1 as f32].into(),
+        [x2 as f32, y1 as f32, z1 as f32].into(),
+        1.0,
+        Color::rgb(1.0, 0.0, 0.0),
+    );
+    lines.line_colored(
+        [x1 as f32, y1 as f32, z1 as f32].into(),
+        [x1 as f32, y2 as f32, z1 as f32].into(),
+        1.0,
+        Color::rgb(1.0, 0.0, 0.0),
+    );
+    lines.line_colored(
+        [x1 as f32, y1 as f32, z1 as f32].into(),
+        [x1 as f32, y1 as f32, z2 as f32].into(),
+        1.0,
+        Color::rgb(1.0, 0.0, 0.0),
+    );
+    lines.line_colored(
+        [x2 as f32, y1 as f32, z1 as f32].into(),
+        [x2 as f32, y2 as f32, z1 as f32].into(),
+        1.0,
+        Color::rgb(1.0, 0.0, 0.0),
+    );
+    lines.line_colored(
+        [x2 as f32, y1 as f32, z1 as f32].into(),
+        [x2 as f32, y1 as f32, z2 as f32].into(),
+        1.0,
+        Color::rgb(1.0, 0.0, 0.0),
+    );
+    lines.line_colored(
+        [x1 as f32, y2 as f32, z1 as f32].into(),
+        [x2 as f32, y2 as f32, z1 as f32].into(),
+        1.0,
+        Color::rgb(1.0, 0.0, 0.0),
+    );
+    lines.line_colored(
+        [x1 as f32, y2 as f32, z1 as f32].into(),
+        [x1 as f32, y2 as f32, z2 as f32].into(),
+        1.0,
+        Color::rgb(1.0, 0.0, 0.0),
+    );
+    lines.line_colored(
+        [x1 as f32, y1 as f32, z2 as f32].into(),
+        [x2 as f32, y1 as f32, z2 as f32].into(),
+        1.0,
+        Color::rgb(1.0, 0.0, 0.0),
+    );
+    lines.line_colored(
+        [x1 as f32, y1 as f32, z2 as f32].into(),
+        [x1 as f32, y2 as f32, z2 as f32].into(),
+        1.0,
+        Color::rgb(1.0, 0.0, 0.0),
+    );
+    lines.line_colored(
+        [x2 as f32, y2 as f32, z1 as f32].into(),
+        [x2 as f32, y2 as f32, z2 as f32].into(),
+        1.0,
+        Color::rgb(1.0, 0.0, 0.0),
+    );
+    lines.line_colored(
+        [x2 as f32, y2 as f32, z1 as f32].into(),
+        [x2 as f32, y1 as f32, z1 as f32].into(),
+        1.0,
+        Color::rgb(1.0, 0.0, 0.0),
+    );
+    lines.line_colored(
+        [x2 as f32, y2 as f32, z1 as f32].into(),
+        [x1 as f32, y2 as f32, z1 as f32].into(),
+        1.0,
+        Color::rgb(1.0, 0.0, 0.0),
+    );
 }
 
 fn update_fps(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, With<TextChanges>>) {
