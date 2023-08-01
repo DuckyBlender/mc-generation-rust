@@ -324,7 +324,6 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
 
                 // Get the block at the current index.
                 let current_block = &chunk_data[index];
-
                 if current_block.block_type == BlockType::Air {
                     continue;
                 }
@@ -337,6 +336,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                         chunk_data[index].air_intersections.push(BlockFace::Top);
                     }
                 }
+                // let above_block_id = get_neighbor_index(&index, &BlockFace::Top);
 
                 // Check the block below the current block.
                 if y > 0 {
@@ -773,6 +773,47 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
     chunk_mesh
 }
 
+/// Decodes 1D index to 3D coordinates.
+///
+/// Reverses this formula: `index = x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE`
+fn get_xyz(index: &usize) -> IVec3 {
+    let x = index % CHUNK_SIZE;
+    let y = (index / CHUNK_SIZE) % CHUNK_SIZE;
+    let z = index / CHUNK_SIZE / CHUNK_SIZE;
+    IVec3::new(x as i32, y as i32, z as i32)
+}
+
+/// Get the 1D index of a neighbor block.
+///
+/// Returns None if the neighbor is outside of the chunk.
+fn get_neighbor_index(index: &usize, face: &BlockFace) -> Option<usize> {
+    let xyz = get_xyz(index);
+    let mut neighbor_xyz = xyz;
+    match face {
+        BlockFace::Top => neighbor_xyz.y += 1,
+        BlockFace::Bottom => neighbor_xyz.y -= 1,
+        BlockFace::Left => neighbor_xyz.x -= 1,
+        BlockFace::Right => neighbor_xyz.x += 1,
+        BlockFace::Front => neighbor_xyz.z += 1,
+        BlockFace::Back => neighbor_xyz.z -= 1,
+    }
+    // Check if the neighbor is outside of the chunk.
+    if neighbor_xyz.x < 0
+        || neighbor_xyz.x >= CHUNK_SIZE as i32
+        || neighbor_xyz.y < 0
+        || neighbor_xyz.y >= CHUNK_SIZE as i32
+        || neighbor_xyz.z < 0
+        || neighbor_xyz.z >= CHUNK_SIZE as i32
+    {
+        return None;
+    }
+    // Convert the 3D coordinates to a 1D index.
+    let neighbor_index = neighbor_xyz.x as usize
+        + neighbor_xyz.y as usize * CHUNK_SIZE
+        + neighbor_xyz.z as usize * CHUNK_SIZE * CHUNK_SIZE;
+    Some(neighbor_index)
+}
+
 fn chunk_border(
     // chunk_position: IVec3,
     // chunk_borders: Query<&ChunkBorder>,
@@ -845,6 +886,18 @@ fn chunk_border(
     );
     lines.line_colored(
         [x2 as f32, y1 as f32, z2 as f32].into(),
+        [x2 as f32, y2 as f32, z2 as f32].into(),
+        1.0,
+        Color::rgb(1.0, 0.0, 0.0),
+    );
+    lines.line_colored(
+        [x1 as f32, y2 as f32, z2 as f32].into(),
+        [x2 as f32, y2 as f32, z2 as f32].into(),
+        1.0,
+        Color::rgb(1.0, 0.0, 0.0),
+    );
+    lines.line_colored(
+        [x2 as f32, y2 as f32, z1 as f32].into(),
         [x2 as f32, y2 as f32, z2 as f32].into(),
         1.0,
         Color::rgb(1.0, 0.0, 0.0),
