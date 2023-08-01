@@ -65,7 +65,7 @@ fn setup(
     // Import the custom texture.
     let custom_texture_handle: Handle<Image> = asset_server.load("textures/dirt.png");
     // Create and save a handle to the mesh.
-    let cube_mesh_handle: Handle<Mesh> = meshes.add(create_cube_mesh());
+    let cube_mesh_handle: Handle<Mesh> = meshes.add(create_chunk_mesh(IVec3::new(0, 0, 0)));
 
     // Render the mesh with the custom texture using a PbrBundle, add the marker.
     commands.spawn((
@@ -82,7 +82,7 @@ fn setup(
 
     // Transform for the camera and lighting, looking at (0,0,0) (the position of the mesh).
     let camera_and_light_transform =
-        Transform::from_xyz(1.8, 1.8, 1.8).looking_at(Vec3::ZERO, Vec3::Y);
+        Transform::from_xyz(40., 40., 40.).looking_at(Vec3::ZERO, Vec3::Y);
 
     // Camera in 3D space.
     commands.spawn(Camera3dBundle {
@@ -128,10 +128,6 @@ fn input_handler(
     mut query: Query<&mut Transform, With<CustomUV>>,
     time: Res<Time>,
 ) {
-    if keyboard_input.pressed(KeyCode::Space) {
-        // Create chunk at 0,0,0
-        create_chunk_mesh(IVec3::new(0, 0, 0));
-    }
     if keyboard_input.pressed(KeyCode::X) {
         for mut transform in &mut query {
             transform.rotate_x(time.delta_seconds() / 1.2);
@@ -432,8 +428,63 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
         }
     }
 
-    // Debug print the chunk data.
-    // info!("{:?}", chunk_data);
+    // We now have all the information we need to create the mesh.
+    // We need to create a face for each block that intersects with another block.
+    // We can do this by iterating over the chunk data and checking the block_intersections of each block.
+    let mut vertices: Vec<[f32; 3]> = Vec::new();
+    let mut indices: Vec<u32> = Vec::new();
+    let mut normals: Vec<[f32; 3]> = Vec::new();
+    let mut uvs: Vec<[f32; 2]> = Vec::new();
+
+    for block in &chunk_data {
+        if block.block_intersections.is_empty() {
+            // The block is not intersecting with any other blocks, so we need to create a face for it.
+            let x = block.block_position.x as f32;
+            let y = block.block_position.y as f32;
+            let z = block.block_position.z as f32;
+
+            // Create the vertices for the face.
+            vertices.push([x - 0.5, y - 0.5, z - 0.5]);
+            vertices.push([x + 0.5, y - 0.5, z - 0.5]);
+            vertices.push([x + 0.5, y + 0.5, z - 0.5]);
+            vertices.push([x - 0.5, y + 0.5, z - 0.5]);
+
+            // Create the indices for the face.
+            let i = vertices.len() as u32 - 4;
+            indices.push(i);
+            indices.push(i + 1);
+            indices.push(i + 2);
+            indices.push(i);
+            indices.push(i + 2);
+            indices.push(i + 3);
+
+            // Create the normals for the face. The normal should be facing towards air. If there are multiple air blocks, the normal should be facing up.
+            // The above is TODO, for now we just assume the normal is facing up.
+            normals.push([0.0, 1.0, 0.0]);
+            normals.push([0.0, 1.0, 0.0]);
+            normals.push([0.0, 1.0, 0.0]);
+            normals.push([0.0, 1.0, 0.0]);
+
+            // Create the UVs for the face.
+            uvs.push([0.0, 0.0]);
+            uvs.push([1.0, 0.0]);
+            uvs.push([1.0, 1.0]);
+            uvs.push([0.0, 1.0]);
+        }
+    }
+
+    // Convert the vectors to VertexAttributeValues and add them to the mesh.
+    chunk_mesh.insert_attribute(
+        Mesh::ATTRIBUTE_POSITION,
+        VertexAttributeValues::Float32x3(vertices),
+    );
+    chunk_mesh.insert_attribute(
+        Mesh::ATTRIBUTE_NORMAL,
+        VertexAttributeValues::Float32x3(normals),
+    );
+    chunk_mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::Float32x2(uvs));
+    chunk_mesh.set_indices(Some(Indices::U32(indices)));
+
     // Count the amount of Air and Dirt blocks.
     let mut air_blocks = 0;
     let mut dirt_blocks = 0;
@@ -455,5 +506,5 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
         total_intersections as f64 / chunk_data.len() as f64
     );
 
-    todo!();
+    chunk_mesh
 }
