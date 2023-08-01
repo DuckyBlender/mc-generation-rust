@@ -64,8 +64,8 @@ fn main() {
         // Systems
         .add_systems(Startup, setup)
         .add_systems(Update, chunk_border)
-        .add_systems(Update, bevy::window::close_on_esc)
-        .add_systems(Update, update_fps)
+        // .add_systems(Update, bevy::window::close_on_esc)
+        .add_systems(Update, update_text)
         .run();
 }
 
@@ -77,21 +77,28 @@ fn setup(
 ) {
     // Import the custom texture.
     let custom_texture_handle: Handle<Image> = asset_server.load("textures/yo.png");
-    // Create and save a handle to the mesh.
-    let cube_mesh_handle: Handle<Mesh> = meshes.add(create_chunk_mesh(IVec3::new(0, 0, 0)));
 
-    // Render the mesh with the custom texture using a PbrBundle, add the marker.
-    commands.spawn((
-        PbrBundle {
-            mesh: cube_mesh_handle,
-            material: materials.add(StandardMaterial {
-                base_color_texture: Some(custom_texture_handle),
-                ..default()
-            }),
-            ..default()
-        },
-        CustomUV,
-    ));
+    // Spawn chunks
+    for x in 0..10 {
+        for y in 0..2 {
+            for z in 0..10 {
+                let chunk_mesh_handle: Handle<Mesh> =
+                    meshes.add(create_chunk_mesh(IVec3::new(x, y, z)));
+
+                commands.spawn((
+                    PbrBundle {
+                        mesh: chunk_mesh_handle,
+                        material: materials.add(StandardMaterial {
+                            base_color_texture: Some(custom_texture_handle.clone()),
+                            ..default()
+                        }),
+                        ..default()
+                    },
+                    CustomUV,
+                ));
+            }
+        }
+    }
 
     // Transform for the camera and lighting, looking at (0,0,0) (the position of the mesh).
     let camera_and_light_transform =
@@ -120,7 +127,7 @@ fn setup(
     // Text to display FPS
     commands.spawn((
         TextBundle::from_section(
-            "FPS: ?".to_string(),
+            "".to_string(),
             TextStyle {
                 font_size: 20.0,
                 ..default()
@@ -129,7 +136,7 @@ fn setup(
         .with_style(Style {
             position_type: PositionType::Absolute,
             bottom: Val::Px(12.0),
-            right: Val::Px(12.0),
+            left: Val::Px(12.0),
             ..default()
         }),
         TextChanges,
@@ -319,6 +326,8 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
     for x in 0..CHUNK_SIZE {
         for y in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
+                // Scale the position down by the chunk size.
+
                 // Get the index of the current block.
                 let index = x + (y * CHUNK_SIZE) + (z * CHUNK_SIZE * CHUNK_SIZE);
 
@@ -328,56 +337,57 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                     continue;
                 }
 
-                // Check the block above the current block.
-                if y < CHUNK_SIZE - 1 {
-                    let above_block = &chunk_data[index + CHUNK_SIZE];
+                let above_block_id = get_neighbor_index(&index, &BlockFace::Top, &chunk_position);
+                let below_block_id =
+                    get_neighbor_index(&index, &BlockFace::Bottom, &chunk_position);
+                let left_block_id = get_neighbor_index(&index, &BlockFace::Left, &chunk_position);
+                let right_block_id = get_neighbor_index(&index, &BlockFace::Right, &chunk_position);
+                let front_block_id = get_neighbor_index(&index, &BlockFace::Front, &chunk_position);
+                let back_block_id = get_neighbor_index(&index, &BlockFace::Back, &chunk_position);
+
+                // Unwrap all the block ids.
+                if let Some(above_block_id) = above_block_id {
+                    let above_block = &chunk_data[above_block_id];
                     if above_block.block_type == BlockType::Air {
                         // Update the air_intersections of the current block.
                         chunk_data[index].air_intersections.push(BlockFace::Top);
                     }
                 }
-                // let above_block_id = get_neighbor_index(&index, &BlockFace::Top);
 
-                // Check the block below the current block.
-                if y > 0 {
-                    let below_block = &chunk_data[index - CHUNK_SIZE];
+                if let Some(below_block_id) = below_block_id {
+                    let below_block = &chunk_data[below_block_id];
                     if below_block.block_type == BlockType::Air {
                         // Update the air_intersections of the current block.
                         chunk_data[index].air_intersections.push(BlockFace::Bottom);
                     }
                 }
 
-                // Check the block to the left of the current block.
-                if x > 0 {
-                    let left_index = (x - 1) + (y * CHUNK_SIZE) + (z * CHUNK_SIZE * CHUNK_SIZE);
-                    let left_block = &chunk_data[left_index];
+                if let Some(left_block_id) = left_block_id {
+                    let left_block = &chunk_data[left_block_id];
                     if left_block.block_type == BlockType::Air {
                         // Update the air_intersections of the current block.
                         chunk_data[index].air_intersections.push(BlockFace::Left);
                     }
                 }
 
-                // Check the block to the right of the current block.
-                if x < CHUNK_SIZE - 1 {
-                    let right_block = &chunk_data[index + 1];
+                if let Some(right_block_id) = right_block_id {
+                    let right_block = &chunk_data[right_block_id];
                     if right_block.block_type == BlockType::Air {
                         // Update the air_intersections of the current block.
                         chunk_data[index].air_intersections.push(BlockFace::Right);
                     }
                 }
 
-                // Check the block in front of the current block.
-                if z < CHUNK_SIZE - 1 {
-                    let front_block = &chunk_data[index + CHUNK_SIZE * CHUNK_SIZE];
+                if let Some(front_block_id) = front_block_id {
+                    let front_block = &chunk_data[front_block_id];
                     if front_block.block_type == BlockType::Air {
                         // Update the air_intersections of the current block.
                         chunk_data[index].air_intersections.push(BlockFace::Front);
                     }
                 }
 
-                // Check the block behind the current block.
-                if z > 0 {
-                    let back_block = &chunk_data[index - CHUNK_SIZE * CHUNK_SIZE];
+                if let Some(back_block_id) = back_block_id {
+                    let back_block = &chunk_data[back_block_id];
                     if back_block.block_type == BlockType::Air {
                         // Update the air_intersections of the current block.
                         chunk_data[index].air_intersections.push(BlockFace::Back);
@@ -386,30 +396,6 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
             }
         }
     }
-
-    // #[derive(PartialEq, Debug, Copy, Clone)]
-    // enum BlockType {
-    //     Air,
-    //     Dirt,
-    // }
-
-    // #[derive(Clone, Copy, Debug, PartialEq)]
-    // enum BlockFace {
-    //     Top,
-    //     Bottom,
-    //     Left,
-    //     Right,
-    //     Front,
-    //     Back,
-    // }
-
-    // #[derive(Clone, Debug)]
-    // struct Block {
-    //     block_type: BlockType,
-    //     block_intersections: Vec<BlockFace>,
-    //     air_intersections: Vec<BlockFace>,
-    //     block_position: IVec3,
-    // }
 
     // We now have all the information we need to create the mesh.
     // We need to create a face for each block that intersects with air.
@@ -776,18 +762,41 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
 /// Decodes 1D index to 3D coordinates.
 ///
 /// Reverses this formula: `index = x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE`
-fn get_xyz(index: &usize) -> IVec3 {
+fn get_xyz(index: &usize, chunk_position: &IVec3) -> IVec3 {
     let x = index % CHUNK_SIZE;
     let y = (index / CHUNK_SIZE) % CHUNK_SIZE;
-    let z = index / CHUNK_SIZE / CHUNK_SIZE;
-    IVec3::new(x as i32, y as i32, z as i32)
+    let z = (index / CHUNK_SIZE / CHUNK_SIZE) % CHUNK_SIZE;
+    IVec3::new(x as i32, y as i32, z as i32) + *chunk_position
 }
+
+// #[derive(PartialEq, Debug, Copy, Clone)]
+// enum BlockType {
+//     Air,
+//     Dirt,
+// }
+
+// #[derive(Clone, Copy, Debug, PartialEq)]
+// enum BlockFace {
+//     Top,
+//     Bottom,
+//     Left,
+//     Right,
+//     Front,
+//     Back,
+// }
+
+// #[derive(Clone, Debug)]
+// struct Block {
+//     block_type: BlockType,
+//     air_intersections: Vec<BlockFace>,
+//     block_position: IVec3,
+// }
 
 /// Get the 1D index of a neighbor block.
 ///
 /// Returns None if the neighbor is outside of the chunk.
-fn get_neighbor_index(index: &usize, face: &BlockFace) -> Option<usize> {
-    let xyz = get_xyz(index);
+fn get_neighbor_index(index: &usize, face: &BlockFace, chunk_position: &IVec3) -> Option<usize> {
+    let xyz = get_xyz(index, chunk_position);
     let mut neighbor_xyz = xyz;
     match face {
         BlockFace::Top => neighbor_xyz.y += 1,
@@ -904,7 +913,14 @@ fn chunk_border(
     );
 }
 
-fn update_fps(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, With<TextChanges>>) {
+/// Updates the UI text.
+///
+/// Information about the FPS, coordinates and direction is displayed.
+fn update_text(
+    diagnostics: Res<DiagnosticsStore>,
+    mut query: Query<&mut Text, With<TextChanges>>,
+    camera_query: Query<&Transform, With<Camera>>,
+) {
     // Update the FPS counter.
     let mut fps_text = query.single_mut();
 
@@ -915,5 +931,32 @@ fn update_fps(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, Wi
         }
     }
 
-    fps_text.sections[0].value = format!("FPS: {:.2}", fps);
+    // Update the coordinates and direction.
+    let camera_transform = camera_query.single();
+    let camera_position = camera_transform.translation;
+    // Determine if the camera is looking towards +X, -X, +Z or -Z.
+    // First determine the angle between the camera's forward vector and the +X axis.
+    let forward = camera_transform.forward();
+    let angle = forward.angle_between(Vec3::X);
+    // Then determine the angle between the camera's forward vector and the -X axis.
+    let angle2 = forward.angle_between(-Vec3::X);
+    // Then determine the angle between the camera's forward vector and the +Z axis.
+    let angle3 = forward.angle_between(Vec3::Z);
+    // Then determine the angle between the camera's forward vector and the -Z axis.
+    let angle4 = forward.angle_between(-Vec3::Z);
+    // The direction is the one with the smallest angle.
+    let direction = if angle < angle2 && angle < angle3 && angle < angle4 {
+        "+X"
+    } else if angle2 < angle && angle2 < angle3 && angle2 < angle4 {
+        "-X"
+    } else if angle3 < angle && angle3 < angle2 && angle3 < angle4 {
+        "+Z"
+    } else {
+        "-Z"
+    };
+
+    fps_text.sections[0].value = format!(
+        "FPS: {:.2}, Position: ({:.2}, {:.2}, {:.2}), Direction: ({})",
+        fps, camera_position.x, camera_position.y, camera_position.z, direction
+    );
 }
