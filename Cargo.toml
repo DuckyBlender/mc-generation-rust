@@ -11,6 +11,7 @@ bevy_flycam = { git = "https://github.com/sburris0/bevy_flycam", branch = "bevy_
 bevy-inspector-egui = "0.19"
 bevy_prototype_debug_lines = { version = "0.11", features = ["3d"] }
 noise = "0.8.2"
+bevy_atmosphere = "0.7.0"
 
 [workspace]
 resolver = "2" # Important! wgpu/Bevy needs this!

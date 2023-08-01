@@ -24,8 +24,8 @@ cargo run --release
 ## TODO
 
 - [x] Implement a crude cube spawning system thingy
-- [ ] Optimize it using a chunk system and meshing
-- [ ] Fix chunk borders
+- [x] Optimize it using a chunk system and meshing
+- [ ] Fix chunk borders (don't render the faces that are touching other chunks but connect them seamlessly)
 - [ ] Add a surface generator and blend it using a function
 - [ ] Add a skybox
 - [ ] Add players

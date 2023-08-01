@@ -1,24 +1,25 @@
-use std::time::Instant;
-
+use bevy::diagnostic::SystemInformationDiagnosticsPlugin;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
+use bevy::pbr::CascadeShadowConfigBuilder;
 use bevy::prelude::*;
 use bevy::render::mesh::Indices;
 use bevy::render::mesh::VertexAttributeValues;
 use bevy::render::render_resource::PrimitiveTopology;
+use bevy_atmosphere::prelude::*;
 use bevy_flycam::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_prototype_debug_lines::*;
 use noise::{NoiseFn, Perlin};
+use std::time::Instant;
 
 const SEED: u32 = 2137;
-const CHUNK_SIZE: usize = 16;
+const CHUNK_SIZE: usize = 32;
 const WORLD_SCALE: f64 = 0.1;
 const NOISE_THRESHOLD: f64 = 0.3;
+const RENDER_DISTANCE: i32 = 3;
 
-// Define a "marker" component to mark the custom mesh. Marker components are often used in Bevy for
-// filtering entities in queries with With, they're usually not queried directly since they don't contain information within them.
 #[derive(Component)]
-struct CustomUV;
+struct ChunkMesh;
 
 // For FPS counter
 #[derive(Component)]
@@ -26,9 +27,6 @@ struct TextChanges;
 
 #[derive(Component)]
 struct ChunkBorder;
-
-#[derive(Component)]
-struct Chunk;
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 enum BlockType {
@@ -47,18 +45,34 @@ enum BlockFace {
 }
 
 fn main() {
+    let window = WindowPlugin {
+        primary_window: Some(Window {
+            title: "Bevy Voxel Demonstration".into(),
+            resolution: (1280., 720.).into(),
+            resizable: true,
+            mode: bevy::window::WindowMode::Windowed,
+            ..default()
+        }),
+        ..default()
+    };
+
     App::new()
-        .insert_resource(Msaa::Sample4)
-        .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
+        .insert_resource(Msaa::Sample2)
+        .add_plugins(
+            DefaultPlugins
+                .set(ImagePlugin::default_nearest())
+                .set(window),
+        )
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(NoCameraPlayerPlugin)
         .add_plugins(FrameTimeDiagnosticsPlugin)
+        .add_plugins(SystemInformationDiagnosticsPlugin)
         .add_plugins(DebugLinesPlugin::with_depth_test(true))
+        .add_plugins(AtmospherePlugin)
         // Systems
         .add_systems(Startup, setup)
         .add_systems(Update, chunk_border)
         .add_systems(Update, debug_keyboard)
-        // .add_systems(Update, bevy::window::close_on_esc)
         .add_systems(Update, update_text)
         .run();
 }
@@ -72,11 +86,10 @@ fn setup(
     // Import the custom texture.
     let custom_texture_handle: Handle<Image> = asset_server.load("textures/yo.png");
 
-    // Spawn chunks
-    // For now only one chunk
-    for x in 0..10 {
-        for y in 0..1 {
-            for z in 0..10 {
+    // Create a radius of chunks around the player (in a sphere)
+    for x in -RENDER_DISTANCE..RENDER_DISTANCE {
+        for y in -RENDER_DISTANCE..RENDER_DISTANCE {
+            for z in -RENDER_DISTANCE..RENDER_DISTANCE {
                 let chunk_mesh_handle: Handle<Mesh> =
                     meshes.add(create_chunk_mesh(IVec3::new(x, y, z)));
 
@@ -89,33 +102,51 @@ fn setup(
                         }),
                         ..default()
                     },
-                    CustomUV,
+                    ChunkMesh,
                 ));
             }
         }
     }
 
-    // Transform for the camera and lighting, looking at (0,0,0) (the position of the mesh).
-    let camera_and_light_transform =
-        Transform::from_xyz(20., 20., 20.).looking_at(Vec3::ZERO, Vec3::Y);
-
     // Camera in 3D space.
     commands.spawn((
         Camera3dBundle {
-            transform: camera_and_light_transform,
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0))
+                .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
             ..default()
+        },
+        FogSettings {
+            color: Color::rgba(0.1, 0.1, 0.1, 1.0),
+            directional_light_color: Color::rgba(1.0, 0.95, 0.75, 0.3),
+            directional_light_exponent: 10.0,
+            falloff: FogFalloff::from_visibility_colors(
+                (CHUNK_SIZE * RENDER_DISTANCE as usize - CHUNK_SIZE) as f32, // distance in world units up to which objects retain visibility (>= 5% contrast)
+                Color::BLACK,
+                Color::BLACK,
+            ),
         },
         FlyCam,
+        AtmosphereCamera::default(),
     ));
 
-    // Light up the scene.
-    commands.spawn(PointLightBundle {
-        point_light: PointLight {
-            intensity: 1000.0,
-            range: 500.0,
+    // Configure a properly scaled cascade shadow map for this scene (defaults are too large, mesh units are in km)
+    let cascade_shadow_config = CascadeShadowConfigBuilder {
+        first_cascade_far_bound: 0.3,
+        maximum_distance: 3.0,
+        ..default()
+    }
+    .build();
+
+    // Sun
+    commands.spawn(DirectionalLightBundle {
+        directional_light: DirectionalLight {
+            color: Color::rgb(0.98, 0.95, 0.82),
+            shadows_enabled: true,
             ..default()
         },
-        transform: camera_and_light_transform,
+        transform: Transform::from_xyz(0.0, 0.0, 0.0)
+            .looking_at(Vec3::new(-0.15, -0.05, 0.25), Vec3::Y),
+        cascade_shadow_config,
         ..default()
     });
 
@@ -130,7 +161,7 @@ fn setup(
         )
         .with_style(Style {
             position_type: PositionType::Absolute,
-            bottom: Val::Px(12.0),
+            bottom: Val::Px(20.0),
             left: Val::Px(12.0),
             ..default()
         }),
@@ -353,101 +384,167 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                             BlockFace::Top,
                         );
                     }
+                } else {
+                    // If the block above is outside the chunk, we need to create a face.
+                    create_face(
+                        &mut vertices,
+                        &mut indices,
+                        &mut normals,
+                        &mut uvs,
+                        IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                        [x as f32, y as f32, z as f32],
+                        BlockFace::Top,
+                    );
+                }
 
-                    // Check the block below.
-                    if y > 0 {
-                        // Get the block type of the block below.
-                        let block_below = chunk_blocks[x][y - 1][z];
-                        // If the block below is Air, we need to create a face.
-                        if block_below == BlockType::Air {
-                            // Create the face.
-                            create_face(
-                                &mut vertices,
-                                &mut indices,
-                                &mut normals,
-                                &mut uvs,
-                                IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
-                                [x as f32, y as f32, z as f32],
-                                BlockFace::Bottom,
-                            );
-                        }
+                // Check the block below.
+                if y > 0 {
+                    // Get the block type of the block below.
+                    let block_below = chunk_blocks[x][y - 1][z];
+                    // If the block below is Air, we need to create a face.
+                    if block_below == BlockType::Air {
+                        // Create the face.
+                        create_face(
+                            &mut vertices,
+                            &mut indices,
+                            &mut normals,
+                            &mut uvs,
+                            IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                            [x as f32, y as f32, z as f32],
+                            BlockFace::Bottom,
+                        );
                     }
+                } else {
+                    // If the block below is outside the chunk, we need to create a face.
+                    create_face(
+                        &mut vertices,
+                        &mut indices,
+                        &mut normals,
+                        &mut uvs,
+                        IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                        [x as f32, y as f32, z as f32],
+                        BlockFace::Bottom,
+                    );
+                }
 
-                    // Check the block to the right.
-                    if x < CHUNK_SIZE - 1 {
-                        // Get the block type of the block to the right.
-                        let block_right = chunk_blocks[x + 1][y][z];
-                        // If the block to the right is Air, we need to create a face.
-                        if block_right == BlockType::Air {
-                            // Create the face.
-                            create_face(
-                                &mut vertices,
-                                &mut indices,
-                                &mut normals,
-                                &mut uvs,
-                                IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
-                                [x as f32, y as f32, z as f32],
-                                BlockFace::Right,
-                            );
-                        }
+                // Check the block to the right.
+                if x < CHUNK_SIZE - 1 {
+                    // Get the block type of the block to the right.
+                    let block_right = chunk_blocks[x + 1][y][z];
+                    // If the block to the right is Air, we need to create a face.
+                    if block_right == BlockType::Air {
+                        // Create the face.
+                        create_face(
+                            &mut vertices,
+                            &mut indices,
+                            &mut normals,
+                            &mut uvs,
+                            IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                            [x as f32, y as f32, z as f32],
+                            BlockFace::Right,
+                        );
                     }
+                } else {
+                    // If the block to the right is outside the chunk, we need to create a face.
+                    create_face(
+                        &mut vertices,
+                        &mut indices,
+                        &mut normals,
+                        &mut uvs,
+                        IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                        [x as f32, y as f32, z as f32],
+                        BlockFace::Right,
+                    );
+                }
 
-                    // Check the block to the left.
-                    if x > 0 {
-                        // Get the block type of the block to the left.
-                        let block_left = chunk_blocks[x - 1][y][z];
-                        // If the block to the left is Air, we need to create a face.
-                        if block_left == BlockType::Air {
-                            // Create the face.
-                            create_face(
-                                &mut vertices,
-                                &mut indices,
-                                &mut normals,
-                                &mut uvs,
-                                IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
-                                [x as f32, y as f32, z as f32],
-                                BlockFace::Left,
-                            );
-                        }
+                // Check the block to the left.
+                if x > 0 {
+                    // Get the block type of the block to the left.
+                    let block_left = chunk_blocks[x - 1][y][z];
+                    // If the block to the left is Air, we need to create a face.
+                    if block_left == BlockType::Air {
+                        // Create the face.
+                        create_face(
+                            &mut vertices,
+                            &mut indices,
+                            &mut normals,
+                            &mut uvs,
+                            IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                            [x as f32, y as f32, z as f32],
+                            BlockFace::Left,
+                        );
                     }
+                } else {
+                    // If the block to the left is outside the chunk, we need to create a face.
+                    create_face(
+                        &mut vertices,
+                        &mut indices,
+                        &mut normals,
+                        &mut uvs,
+                        IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                        [x as f32, y as f32, z as f32],
+                        BlockFace::Left,
+                    );
+                }
 
-                    // Check the block in front.
-                    if z < CHUNK_SIZE - 1 {
-                        // Get the block type of the block in front.
-                        let block_front = chunk_blocks[x][y][z + 1];
-                        // If the block in front is Air, we need to create a face.
-                        if block_front == BlockType::Air {
-                            // Create the face.
-                            create_face(
-                                &mut vertices,
-                                &mut indices,
-                                &mut normals,
-                                &mut uvs,
-                                IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
-                                [x as f32, y as f32, z as f32],
-                                BlockFace::Front,
-                            );
-                        }
+                // Check the block in front.
+                if z < CHUNK_SIZE - 1 {
+                    // Get the block type of the block in front.
+                    let block_front = chunk_blocks[x][y][z + 1];
+                    // If the block in front is Air, we need to create a face.
+                    if block_front == BlockType::Air {
+                        // Create the face.
+                        create_face(
+                            &mut vertices,
+                            &mut indices,
+                            &mut normals,
+                            &mut uvs,
+                            IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                            [x as f32, y as f32, z as f32],
+                            BlockFace::Front,
+                        );
                     }
+                } else {
+                    // If the block in front is outside the chunk, we need to create a face.
+                    create_face(
+                        &mut vertices,
+                        &mut indices,
+                        &mut normals,
+                        &mut uvs,
+                        IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                        [x as f32, y as f32, z as f32],
+                        BlockFace::Front,
+                    );
+                }
 
-                    // Check the block behind.
-                    if z > 0 {
-                        // Get the block type of the block behind.
-                        let block_behind = chunk_blocks[x][y][z - 1];
-                        // If the block behind is Air, we need to create a face.
-                        if block_behind == BlockType::Air {
-                            // Create the face.
-                            create_face(
-                                &mut vertices,
-                                &mut indices,
-                                &mut normals,
-                                &mut uvs,
-                                IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
-                                [x as f32, y as f32, z as f32],
-                                BlockFace::Back,
-                            );
-                        }
+                // Check the block behind.
+                if z > 0 {
+                    // Get the block type of the block behind.
+                    let block_behind = chunk_blocks[x][y][z - 1];
+                    // If the block behind is Air, we need to create a face.
+                    if block_behind == BlockType::Air {
+                        // Create the face.
+                        create_face(
+                            &mut vertices,
+                            &mut indices,
+                            &mut normals,
+                            &mut uvs,
+                            IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                            [x as f32, y as f32, z as f32],
+                            BlockFace::Back,
+                        );
                     }
+                } else {
+                    // If the block behind is outside the chunk, we need to create a face.
+                    create_face(
+                        &mut vertices,
+                        &mut indices,
+                        &mut normals,
+                        &mut uvs,
+                        IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                        [x as f32, y as f32, z as f32],
+                        BlockFace::Back,
+                    );
                 }
             }
         }
@@ -673,6 +770,20 @@ fn update_text(
         }
     }
 
+    let mut cpu = 0.0;
+    if let Some(cpu_diagnostic) = diagnostics.get(SystemInformationDiagnosticsPlugin::CPU_USAGE) {
+        if let Some(cpu_smoothed) = cpu_diagnostic.smoothed() {
+            cpu = cpu_smoothed;
+        }
+    }
+
+    let mut ram = 0.0;
+    if let Some(ram_diagnostic) = diagnostics.get(SystemInformationDiagnosticsPlugin::MEM_USAGE) {
+        if let Some(ram_smoothed) = ram_diagnostic.smoothed() {
+            ram = ram_smoothed;
+        }
+    }
+
     // Update the coordinates and direction.
     let camera_transform = camera_query.single();
     let camera_position = camera_transform.translation;
@@ -698,7 +809,7 @@ fn update_text(
     };
 
     fps_text.sections[0].value = format!(
-        "FPS: {:.2}, Position: ({:.2}, {:.2}, {:.2}), Direction: ({})",
-        fps, camera_position.x, camera_position.y, camera_position.z, direction
+        "FPS: {:.2}, CPU: {:.2}%, RAM: {:.2}%\nPosition: ({:.2}, {:.2}, {:.2}), Direction: ({})",
+        fps, cpu, ram, camera_position.x, camera_position.y, camera_position.z, direction
     );
 }
