@@ -1,10 +1,11 @@
-use std::default;
-use std::f32::consts::PI;
+use std::time::Instant;
 
+use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::render::mesh::Indices;
 use bevy::render::mesh::VertexAttributeValues;
 use bevy::render::render_resource::PrimitiveTopology;
+use bevy_flycam::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use noise::{NoiseFn, Perlin};
 
@@ -18,6 +19,10 @@ const NOISE_THRESHOLD: f64 = 0.3;
 #[derive(Component)]
 struct CustomUV;
 
+// For FPS counter
+#[derive(Component)]
+struct TextChanges;
+
 #[derive(Component)]
 struct Chunk;
 
@@ -27,7 +32,7 @@ enum BlockType {
     Dirt,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum BlockFace {
     Top,
     Bottom,
@@ -41,6 +46,7 @@ enum BlockFace {
 struct Block {
     block_type: BlockType,
     block_intersections: Vec<BlockFace>,
+    air_intersections: Vec<BlockFace>,
     block_position: IVec3,
 }
 
@@ -49,10 +55,11 @@ fn main() {
         .insert_resource(Msaa::Sample4)
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
         .add_plugins(WorldInspectorPlugin::new())
+        .add_plugins(NoCameraPlayerPlugin)
         // Systems
         .add_systems(Startup, setup)
         .add_systems(Update, bevy::window::close_on_esc)
-        .add_systems(Update, input_handler)
+        .add_systems(Update, update_fps)
         .run();
 }
 
@@ -63,7 +70,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     // Import the custom texture.
-    let custom_texture_handle: Handle<Image> = asset_server.load("textures/dirt.png");
+    let custom_texture_handle: Handle<Image> = asset_server.load("textures/yo.png");
     // Create and save a handle to the mesh.
     let cube_mesh_handle: Handle<Mesh> = meshes.add(create_chunk_mesh(IVec3::new(0, 0, 0)));
 
@@ -82,29 +89,32 @@ fn setup(
 
     // Transform for the camera and lighting, looking at (0,0,0) (the position of the mesh).
     let camera_and_light_transform =
-        Transform::from_xyz(40., 40., 40.).looking_at(Vec3::ZERO, Vec3::Y);
+        Transform::from_xyz(20., 20., 20.).looking_at(Vec3::ZERO, Vec3::Y);
 
     // Camera in 3D space.
-    commands.spawn(Camera3dBundle {
-        transform: camera_and_light_transform,
-        ..default()
-    });
+    commands.spawn((
+        Camera3dBundle {
+            transform: camera_and_light_transform,
+            ..default()
+        },
+        FlyCam,
+    ));
 
     // Light up the scene.
     commands.spawn(PointLightBundle {
         point_light: PointLight {
             intensity: 1000.0,
-            range: 100.0,
+            range: 500.0,
             ..default()
         },
         transform: camera_and_light_transform,
         ..default()
     });
 
-    // Text to describe the controls.
-    commands.spawn(
+    // Text to display FPS
+    commands.spawn((
         TextBundle::from_section(
-            "Controls:\nSpace: Change UVs\nX/Y/Z: Rotate\nR: Reset orientation",
+            "FPS: ?".to_string(),
             TextStyle {
                 font_size: 20.0,
                 ..default()
@@ -112,42 +122,12 @@ fn setup(
         )
         .with_style(Style {
             position_type: PositionType::Absolute,
-            top: Val::Px(12.0),
-            left: Val::Px(12.0),
+            bottom: Val::Px(12.0),
+            right: Val::Px(12.0),
             ..default()
         }),
-    );
-}
-
-// System to receive input from the user,
-// check out examples/input/ for more examples about user input.
-fn input_handler(
-    keyboard_input: Res<Input<KeyCode>>,
-    // mesh_query: Query<&Handle<Mesh>, With<CustomUV>>,
-    // mut meshes: ResMut<Assets<Mesh>>,
-    mut query: Query<&mut Transform, With<CustomUV>>,
-    time: Res<Time>,
-) {
-    if keyboard_input.pressed(KeyCode::X) {
-        for mut transform in &mut query {
-            transform.rotate_x(time.delta_seconds() / 1.2);
-        }
-    }
-    if keyboard_input.pressed(KeyCode::Y) {
-        for mut transform in &mut query {
-            transform.rotate_y(time.delta_seconds() / 1.2);
-        }
-    }
-    if keyboard_input.pressed(KeyCode::Z) {
-        for mut transform in &mut query {
-            transform.rotate_z(time.delta_seconds() / 1.2);
-        }
-    }
-    if keyboard_input.pressed(KeyCode::R) {
-        for mut transform in &mut query {
-            transform.look_to(Vec3::NEG_Z, Vec3::Y);
-        }
-    }
+        TextChanges,
+    ));
 }
 
 fn create_cube_mesh() -> Mesh {
@@ -281,6 +261,9 @@ fn create_cube_mesh() -> Mesh {
 /// If the noise value is above a certain threshold, a cube is created at that position.
 /// The chunk_position vec3 is the position of the chunk in the world. It is scaled down by the chunk size.
 fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
+    // Start the timer.
+    let start = Instant::now();
+
     // Create a new mesh.
     let mut chunk_mesh = Mesh::new(PrimitiveTopology::TriangleList);
 
@@ -314,12 +297,14 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                     chunk_data.push(Block {
                         block_type: BlockType::Dirt,
                         block_intersections: Vec::new(),
+                        air_intersections: Vec::new(),
                         block_position: IVec3::new(scaled_x, scaled_y, scaled_z),
                     });
                 } else {
                     chunk_data.push(Block {
                         block_type: BlockType::Air,
                         block_intersections: Vec::new(),
+                        air_intersections: Vec::new(),
                         block_position: IVec3::new(scaled_x, scaled_y, scaled_z),
                     });
                 }
@@ -340,36 +325,15 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                     continue;
                 }
 
-                // #[derive(PartialEq, Debug, Copy, Clone)]
-                // enum BlockType {
-                //     Air,
-                //     Dirt,
-                // }
-
-                // #[derive(Clone, Copy, Debug)]
-                // enum BlockFace {
-                //     Top,
-                //     Bottom,
-                //     Left,
-                //     Right,
-                //     Front,
-                //     Back,
-                // }
-
-                // #[derive(Clone, Debug)]
-                // struct Block {
-                //     block_type: BlockType,
-                //     block_intersections: Vec<BlockFace>,
-                //     block_position: IVec3,
-                // }
-
                 // Check the block above the current block.
                 if y < CHUNK_SIZE - 1 {
                     let above_block = &chunk_data[index + CHUNK_SIZE];
                     if above_block.block_type != BlockType::Air {
                         // Update the block_intersections of the current block.
-                        // Update, don't overwrite, because there might be multiple blocks intersecting.
                         chunk_data[index].block_intersections.push(BlockFace::Top);
+                    } else {
+                        // Update the air_intersections of the current block.
+                        chunk_data[index].air_intersections.push(BlockFace::Top);
                     }
                 }
 
@@ -378,10 +342,12 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                     let below_block = &chunk_data[index - CHUNK_SIZE];
                     if below_block.block_type != BlockType::Air {
                         // Update the block_intersections of the current block.
-                        // Update, don't overwrite, because there might be multiple blocks intersecting.
                         chunk_data[index]
                             .block_intersections
                             .push(BlockFace::Bottom);
+                    } else {
+                        // Update the air_intersections of the current block.
+                        chunk_data[index].air_intersections.push(BlockFace::Bottom);
                     }
                 }
 
@@ -390,8 +356,10 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                     let left_block = &chunk_data[index - 1];
                     if left_block.block_type != BlockType::Air {
                         // Update the block_intersections of the current block.
-                        // Update, don't overwrite, because there might be multiple blocks intersecting.
                         chunk_data[index].block_intersections.push(BlockFace::Left);
+                    } else {
+                        // Update the air_intersections of the current block.
+                        chunk_data[index].air_intersections.push(BlockFace::Left);
                     }
                 }
 
@@ -400,8 +368,10 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                     let right_block = &chunk_data[index + 1];
                     if right_block.block_type != BlockType::Air {
                         // Update the block_intersections of the current block.
-                        // Update, don't overwrite, because there might be multiple blocks intersecting.
                         chunk_data[index].block_intersections.push(BlockFace::Right);
+                    } else {
+                        // Update the air_intersections of the current block.
+                        chunk_data[index].air_intersections.push(BlockFace::Right);
                     }
                 }
 
@@ -410,8 +380,10 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                     let front_block = &chunk_data[index + CHUNK_SIZE * CHUNK_SIZE];
                     if front_block.block_type != BlockType::Air {
                         // Update the block_intersections of the current block.
-                        // Update, don't overwrite, because there might be multiple blocks intersecting.
                         chunk_data[index].block_intersections.push(BlockFace::Front);
+                    } else {
+                        // Update the air_intersections of the current block.
+                        chunk_data[index].air_intersections.push(BlockFace::Front);
                     }
                 }
 
@@ -420,56 +392,345 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                     let back_block = &chunk_data[index - CHUNK_SIZE * CHUNK_SIZE];
                     if back_block.block_type != BlockType::Air {
                         // Update the block_intersections of the current block.
-                        // Update, don't overwrite, because there might be multiple blocks intersecting.
                         chunk_data[index].block_intersections.push(BlockFace::Back);
+                    } else {
+                        // Update the air_intersections of the current block.
+                        chunk_data[index].air_intersections.push(BlockFace::Back);
                     }
                 }
             }
         }
     }
 
+    // #[derive(PartialEq, Debug, Copy, Clone)]
+    // enum BlockType {
+    //     Air,
+    //     Dirt,
+    // }
+
+    // #[derive(Clone, Copy, Debug, PartialEq)]
+    // enum BlockFace {
+    //     Top,
+    //     Bottom,
+    //     Left,
+    //     Right,
+    //     Front,
+    //     Back,
+    // }
+
+    // #[derive(Clone, Debug)]
+    // struct Block {
+    //     block_type: BlockType,
+    //     block_intersections: Vec<BlockFace>,
+    //     air_intersections: Vec<BlockFace>,
+    //     block_position: IVec3,
+    // }
+
     // We now have all the information we need to create the mesh.
-    // We need to create a face for each block that intersects with another block.
-    // We can do this by iterating over the chunk data and checking the block_intersections of each block.
+    // We need to create a face for each block that intersects with air.
     let mut vertices: Vec<[f32; 3]> = Vec::new();
     let mut indices: Vec<u32> = Vec::new();
     let mut normals: Vec<[f32; 3]> = Vec::new();
     let mut uvs: Vec<[f32; 2]> = Vec::new();
 
     for block in &chunk_data {
-        if block.block_intersections.is_empty() {
-            // The block is not intersecting with any other blocks, so we need to create a face for it.
-            let x = block.block_position.x as f32;
-            let y = block.block_position.y as f32;
-            let z = block.block_position.z as f32;
+        if block.block_type == BlockType::Air {
+            continue;
+        }
 
-            // Create the vertices for the face.
-            vertices.push([x - 0.5, y - 0.5, z - 0.5]);
-            vertices.push([x + 0.5, y - 0.5, z - 0.5]);
-            vertices.push([x + 0.5, y + 0.5, z - 0.5]);
-            vertices.push([x - 0.5, y + 0.5, z - 0.5]);
+        // Get the position of the current block.
+        let block_position = block.block_position;
 
-            // Create the indices for the face.
-            let i = vertices.len() as u32 - 4;
-            indices.push(i);
-            indices.push(i + 1);
-            indices.push(i + 2);
-            indices.push(i);
-            indices.push(i + 2);
-            indices.push(i + 3);
+        // Get the block intersections of the current block.
+        let block_intersections = &block.block_intersections;
 
-            // Create the normals for the face. The normal should be facing towards air. If there are multiple air blocks, the normal should be facing up.
-            // The above is TODO, for now we just assume the normal is facing up.
-            normals.push([0.0, 1.0, 0.0]);
-            normals.push([0.0, 1.0, 0.0]);
-            normals.push([0.0, 1.0, 0.0]);
-            normals.push([0.0, 1.0, 0.0]);
+        // Get the air intersections of the current block.
+        let air_intersections = &block.air_intersections;
 
-            // Create the UVs for the face.
-            uvs.push([0.0, 0.0]);
-            uvs.push([1.0, 0.0]);
-            uvs.push([1.0, 1.0]);
-            uvs.push([0.0, 1.0]);
+        // Get the index of the current block.
+        let mut index = vertices.len() as u32;
+
+        // Create a face for each block intersection.
+        for block_intersection in block_intersections {
+            match block_intersection {
+                BlockFace::Top => {
+                    // Create the vertices for the top face.
+                    vertices.push([
+                        block_position.x as f32,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32 + 1.0,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32 + 1.0,
+                    ]);
+
+                    // Create the indices for the top face.
+                    indices.push(index);
+                    indices.push(index + 1);
+                    indices.push(index + 2);
+                    indices.push(index);
+                    indices.push(index + 2);
+                    indices.push(index + 3);
+
+                    // Create the normals for the top face.
+                    normals.push([0.0, 1.0, 0.0]);
+                    normals.push([0.0, 1.0, 0.0]);
+                    normals.push([0.0, 1.0, 0.0]);
+                    normals.push([0.0, 1.0, 0.0]);
+
+                    // Create the uvs for the top face.
+                    uvs.push([0.0, 0.0]);
+                    uvs.push([1.0, 0.0]);
+                    uvs.push([1.0, 1.0]);
+                    uvs.push([0.0, 1.0]);
+
+                    // Update the index.
+                    index += 4;
+                }
+                BlockFace::Bottom => {
+                    // Create the vertices for the bottom face.
+                    vertices.push([
+                        block_position.x as f32,
+                        block_position.y as f32,
+                        block_position.z as f32,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32,
+                        block_position.z as f32,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32,
+                        block_position.z as f32 + 1.0,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32,
+                        block_position.y as f32,
+                        block_position.z as f32 + 1.0,
+                    ]);
+
+                    // Create the indices for the bottom face.
+                    indices.push(index);
+                    indices.push(index + 2);
+                    indices.push(index + 1);
+                    indices.push(index);
+                    indices.push(index + 3);
+                    indices.push(index + 2);
+
+                    // Create the normals for the bottom face.
+                    normals.push([0.0, -1.0, 0.0]);
+                    normals.push([0.0, -1.0, 0.0]);
+                    normals.push([0.0, -1.0, 0.0]);
+                    normals.push([0.0, -1.0, 0.0]);
+
+                    // Create the uvs for the bottom face.
+                    uvs.push([0.0, 0.0]);
+                    uvs.push([1.0, 0.0]);
+                    uvs.push([1.0, 1.0]);
+                    uvs.push([0.0, 1.0]);
+
+                    // Update the index.
+                    index += 4;
+                }
+
+                BlockFace::Left => {
+                    // Create the vertices for the left face.
+                    vertices.push([
+                        block_position.x as f32,
+                        block_position.y as f32,
+                        block_position.z as f32,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32 + 1.0,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32,
+                        block_position.y as f32,
+                        block_position.z as f32 + 1.0,
+                    ]);
+
+                    // Create the indices for the left face.
+                    indices.push(index);
+                    indices.push(index + 1);
+                    indices.push(index + 2);
+                    indices.push(index);
+                    indices.push(index + 2);
+                    indices.push(index + 3);
+
+                    // Create the normals for the left face.
+                    normals.push([-1.0, 0.0, 0.0]);
+                    normals.push([-1.0, 0.0, 0.0]);
+                    normals.push([-1.0, 0.0, 0.0]);
+                    normals.push([-1.0, 0.0, 0.0]);
+
+                    // Create the uvs for the left face.
+                    uvs.push([0.0, 0.0]);
+                    uvs.push([1.0, 0.0]);
+                    uvs.push([1.0, 1.0]);
+                    uvs.push([0.0, 1.0]);
+
+                    // Update the index.
+                    index += 4;
+                }
+                BlockFace::Right => {
+                    // Create the vertices for the right face.
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32,
+                        block_position.z as f32,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32 + 1.0,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32,
+                        block_position.z as f32 + 1.0,
+                    ]);
+
+                    // Create the indices for the right face.
+                    indices.push(index);
+                    indices.push(index + 2);
+                    indices.push(index + 1);
+                    indices.push(index);
+                    indices.push(index + 3);
+                    indices.push(index + 2);
+
+                    // Create the normals for the right face.
+                    normals.push([1.0, 0.0, 0.0]);
+                    normals.push([1.0, 0.0, 0.0]);
+                    normals.push([1.0, 0.0, 0.0]);
+                    normals.push([1.0, 0.0, 0.0]);
+
+                    // Create the uvs for the right face.
+                    uvs.push([0.0, 0.0]);
+                    uvs.push([1.0, 0.0]);
+                    uvs.push([1.0, 1.0]);
+                    uvs.push([0.0, 1.0]);
+
+                    // Update the index.
+                    index += 4;
+                }
+                BlockFace::Front => {
+                    // Create the vertices for the front face.
+                    vertices.push([
+                        block_position.x as f32,
+                        block_position.y as f32,
+                        block_position.z as f32,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32,
+                        block_position.z as f32,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32,
+                    ]);
+
+                    // Create the indices for the front face.
+                    indices.push(index);
+                    indices.push(index + 1);
+                    indices.push(index + 2);
+                    indices.push(index);
+                    indices.push(index + 2);
+                    indices.push(index + 3);
+
+                    // Create the normals for the front face.
+                    normals.push([0.0, 0.0, -1.0]);
+                    normals.push([0.0, 0.0, -1.0]);
+                    normals.push([0.0, 0.0, -1.0]);
+                    normals.push([0.0, 0.0, -1.0]);
+
+                    // Create the uvs for the front face.
+                    uvs.push([0.0, 0.0]);
+                    uvs.push([1.0, 0.0]);
+                    uvs.push([1.0, 1.0]);
+                    uvs.push([0.0, 1.0]);
+
+                    // Update the index.
+                    index += 4;
+                }
+                BlockFace::Back => {
+                    // Create the vertices for the back face.
+                    vertices.push([
+                        block_position.x as f32,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32 + 1.0,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32 + 1.0,
+                        block_position.z as f32 + 1.0,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32 + 1.0,
+                        block_position.y as f32,
+                        block_position.z as f32 + 1.0,
+                    ]);
+                    vertices.push([
+                        block_position.x as f32,
+                        block_position.y as f32,
+                        block_position.z as f32 + 1.0,
+                    ]);
+
+                    // Create the indices for the back face.
+                    indices.push(index);
+                    indices.push(index + 2);
+                    indices.push(index + 1);
+                    indices.push(index);
+                    indices.push(index + 3);
+                    indices.push(index + 2);
+
+                    // Create the normals for the back face.
+                    normals.push([0.0, 0.0, 1.0]);
+                    normals.push([0.0, 0.0, 1.0]);
+                    normals.push([0.0, 0.0, 1.0]);
+                    normals.push([0.0, 0.0, 1.0]);
+
+                    // Create the uvs for the back face.
+                    uvs.push([0.0, 0.0]);
+                    uvs.push([1.0, 0.0]);
+                    uvs.push([1.0, 1.0]);
+                    uvs.push([0.0, 1.0]);
+
+                    // Update the index.
+                    index += 4;
+                }
+            }
         }
     }
 
@@ -484,6 +745,10 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
     );
     chunk_mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::Float32x2(uvs));
     chunk_mesh.set_indices(Some(Indices::U32(indices)));
+
+    // Stop the timer
+    let elapsed = start.elapsed();
+    info!("Chunk generation took: {:?}", elapsed);
 
     // Count the amount of Air and Dirt blocks.
     let mut air_blocks = 0;
@@ -505,6 +770,40 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
         "Average intersections: {}",
         total_intersections as f64 / chunk_data.len() as f64
     );
+    // Count total intersections for all sides
+    let (mut top, mut bottom, mut left, mut right, mut front, mut back) = (0, 0, 0, 0, 0, 0);
+    for block in &chunk_data {
+        for intersection in &block.block_intersections {
+            match intersection {
+                BlockFace::Top => top += 1,
+                BlockFace::Bottom => bottom += 1,
+                BlockFace::Left => left += 1,
+                BlockFace::Right => right += 1,
+                BlockFace::Front => front += 1,
+                BlockFace::Back => back += 1,
+            }
+        }
+    }
+    info!(
+        "Intersections: T: {}, B: {}, L: {}, R: {}, F: {}, B: {}",
+        top, bottom, left, right, front, back
+    );
 
     chunk_mesh
+}
+
+fn update_fps(
+    time: Res<Time>,
+    diagnostics: Res<DiagnosticsStore>,
+    mut query: Query<&mut Text, With<TextChanges>>,
+) {
+    // Update the FPS counter.
+    let mut fps_text = query.single_mut();
+    let mut fps = 0.0;
+    if let Some(fps_diagnostic) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
+        if let Some(fps_smoothed) = fps_diagnostic.smoothed() {
+            fps = fps_smoothed;
+        }
+    }
+    fps_text.sections[0].value = format!("FPS: {:.2}", fps);
 }
