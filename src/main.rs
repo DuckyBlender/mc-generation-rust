@@ -249,22 +249,13 @@ fn create_chunk_mesh(chunk_position: IVec2XZ) -> Mesh {
             for z in 0..CHUNK_SIZE {
                 // Scale the position down by the chunk size.
                 let scaled_x = x as i32 + (chunk_position.x * CHUNK_SIZE as i32);
-                let scaled_y = y;
+                let scaled_y = y as i32;
                 let scaled_z = z as i32 + (chunk_position.z * CHUNK_SIZE as i32);
                 // info!("Scaled position: {}, {}, {}", scaled_x, scaled_y, scaled_z);
 
                 // Sample the noise function at the scaled position.
                 // The perlin noise needs a float value, so we need to cast the scaled position to a float.
-                let noise_value = perlin.get([
-                    scaled_x as f64 * WORLD_SCALE,
-                    scaled_y as f64 * WORLD_SCALE,
-                    scaled_z as f64 * WORLD_SCALE,
-                ]);
-
-                // If the noise value is above the threshold, create a cube at that position.
-                if noise_value > NOISE_THRESHOLD {
-                    chunk_blocks[x][y][z] = BlockType::Dirt;
-                }
+                chunk_blocks[x][y][z] = is_block(IVec3::new(scaled_x, scaled_y, scaled_z), &perlin);
             }
         }
     }
@@ -303,7 +294,7 @@ fn create_chunk_mesh(chunk_position: IVec2XZ) -> Mesh {
                         );
                     }
                 } else {
-                    // If the block above is outside the chunk, we need to create a face.
+                    // If the block above is on top or bottom of the chunk, just create the face.
                     create_face(
                         &mut vertices,
                         &mut indices,
@@ -333,7 +324,7 @@ fn create_chunk_mesh(chunk_position: IVec2XZ) -> Mesh {
                         );
                     }
                 } else {
-                    // If the block below is outside the chunk, we need to create a face.
+                    // If the block above is on top or bottom of the chunk, just create the face.
                     create_face(
                         &mut vertices,
                         &mut indices,
@@ -363,16 +354,27 @@ fn create_chunk_mesh(chunk_position: IVec2XZ) -> Mesh {
                         );
                     }
                 } else {
-                    // If the block to the right is outside the chunk, we need to create a face.
-                    create_face(
-                        &mut vertices,
-                        &mut indices,
-                        &mut normals,
-                        &mut uvs,
-                        IVec2XZ::new(chunk_position.x, chunk_position.z),
-                        [x as f32, y as f32, z as f32],
-                        BlockFace::Right,
+                    // If the block above is outside the chunk, we need to calculate if there is block in other chunk.
+                    let block = is_block(
+                        IVec3::new(
+                            x as i32 + (chunk_position.x * CHUNK_SIZE as i32) + 1,
+                            y as i32,
+                            z as i32 + (chunk_position.z * CHUNK_SIZE as i32),
+                        ),
+                        &perlin,
                     );
+                    if block == BlockType::Air {
+                        // Create the face.
+                        create_face(
+                            &mut vertices,
+                            &mut indices,
+                            &mut normals,
+                            &mut uvs,
+                            IVec2XZ::new(chunk_position.x, chunk_position.z),
+                            [x as f32, y as f32, z as f32],
+                            BlockFace::Right,
+                        );
+                    }
                 }
 
                 // Check the block to the left.
@@ -393,16 +395,27 @@ fn create_chunk_mesh(chunk_position: IVec2XZ) -> Mesh {
                         );
                     }
                 } else {
-                    // If the block to the left is outside the chunk, we need to create a face.
-                    create_face(
-                        &mut vertices,
-                        &mut indices,
-                        &mut normals,
-                        &mut uvs,
-                        IVec2XZ::new(chunk_position.x, chunk_position.z),
-                        [x as f32, y as f32, z as f32],
-                        BlockFace::Left,
+                    // If the block above is outside the chunk, we need to calculate if there is block in other chunk.
+                    let block = is_block(
+                        IVec3::new(
+                            x as i32 + (chunk_position.x * CHUNK_SIZE as i32) - 1,
+                            y as i32,
+                            z as i32 + (chunk_position.z * CHUNK_SIZE as i32),
+                        ),
+                        &perlin,
                     );
+                    if block == BlockType::Air {
+                        // Create the face.
+                        create_face(
+                            &mut vertices,
+                            &mut indices,
+                            &mut normals,
+                            &mut uvs,
+                            IVec2XZ::new(chunk_position.x, chunk_position.z),
+                            [x as f32, y as f32, z as f32],
+                            BlockFace::Left,
+                        );
+                    }
                 }
 
                 // Check the block in front.
@@ -423,16 +436,27 @@ fn create_chunk_mesh(chunk_position: IVec2XZ) -> Mesh {
                         );
                     }
                 } else {
-                    // If the block in front is outside the chunk, we need to create a face.
-                    create_face(
-                        &mut vertices,
-                        &mut indices,
-                        &mut normals,
-                        &mut uvs,
-                        IVec2XZ::new(chunk_position.x, chunk_position.z),
-                        [x as f32, y as f32, z as f32],
-                        BlockFace::Front,
+                    // If the block above is outside the chunk, we need to calculate if there is block in other chunk.
+                    let block = is_block(
+                        IVec3::new(
+                            x as i32 + (chunk_position.x * CHUNK_SIZE as i32),
+                            y as i32,
+                            z as i32 + (chunk_position.z * CHUNK_SIZE as i32) + 1,
+                        ),
+                        &perlin,
                     );
+                    if block == BlockType::Air {
+                        // Create the face.
+                        create_face(
+                            &mut vertices,
+                            &mut indices,
+                            &mut normals,
+                            &mut uvs,
+                            IVec2XZ::new(chunk_position.x, chunk_position.z),
+                            [x as f32, y as f32, z as f32],
+                            BlockFace::Front,
+                        );
+                    }
                 }
 
                 // Check the block behind.
@@ -453,16 +477,27 @@ fn create_chunk_mesh(chunk_position: IVec2XZ) -> Mesh {
                         );
                     }
                 } else {
-                    // If the block behind is outside the chunk, we need to create a face.
-                    create_face(
-                        &mut vertices,
-                        &mut indices,
-                        &mut normals,
-                        &mut uvs,
-                        IVec2XZ::new(chunk_position.x, chunk_position.z),
-                        [x as f32, y as f32, z as f32],
-                        BlockFace::Back,
+                    // If the block above is outside the chunk, we need to calculate if there is block in other chunk.
+                    let block = is_block(
+                        IVec3::new(
+                            x as i32 + (chunk_position.x * CHUNK_SIZE as i32),
+                            y as i32,
+                            z as i32 + (chunk_position.z * CHUNK_SIZE as i32) - 1,
+                        ),
+                        &perlin,
                     );
+                    if block == BlockType::Air {
+                        // Create the face.
+                        create_face(
+                            &mut vertices,
+                            &mut indices,
+                            &mut normals,
+                            &mut uvs,
+                            IVec2XZ::new(chunk_position.x, chunk_position.z),
+                            [x as f32, y as f32, z as f32],
+                            BlockFace::Back,
+                        );
+                    }
                 }
             }
         }
@@ -485,6 +520,23 @@ fn create_chunk_mesh(chunk_position: IVec2XZ) -> Mesh {
     info!("Chunk generation took: {:?}", elapsed);
 
     chunk_mesh
+}
+
+fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
+    // Sample the noise function at the scaled position.
+    // The perlin noise needs a float value, so we need to cast the scaled position to a float.
+    let noise_value = perlin.get([
+        pos.x as f64 * WORLD_SCALE,
+        pos.y as f64 * WORLD_SCALE,
+        pos.z as f64 * WORLD_SCALE,
+    ]);
+
+    // If the noise value is above the threshold, create a cube at that position.
+    if noise_value > NOISE_THRESHOLD {
+        BlockType::Dirt
+    } else {
+        BlockType::Air
+    }
 }
 
 /// Creates a face on a block.
