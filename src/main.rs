@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use bevy::render::mesh::Indices;
 use bevy::render::mesh::VertexAttributeValues;
 use bevy::render::render_resource::PrimitiveTopology;
+use bevy::tasks::AsyncComputeTaskPool;
 use bevy_atmosphere::prelude::*;
 use bevy_flycam::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
@@ -16,7 +17,7 @@ const SEED: u32 = 2137;
 const CHUNK_SIZE: usize = 32;
 const WORLD_SCALE: f64 = 0.1;
 const NOISE_THRESHOLD: f64 = 0.3;
-const RENDER_DISTANCE: i32 = 3;
+const RENDER_DISTANCE: i32 = 2;
 
 #[derive(Component)]
 struct ChunkMesh;
@@ -27,6 +28,11 @@ struct TextChanges;
 
 #[derive(Component)]
 struct ChunkBorder;
+
+#[derive(Resource)]
+struct ChunksLoaded {
+    chunks: Vec<IVec3>,
+}
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 enum BlockType {
@@ -63,51 +69,28 @@ fn main() {
                 .set(ImagePlugin::default_nearest())
                 .set(window),
         )
-        .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(NoCameraPlayerPlugin)
+        .insert_resource(MovementSettings {
+            sensitivity: 0.00015, // default: 0.00012
+            speed: 30.0,          // default: 12.0
+        })
+        .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(FrameTimeDiagnosticsPlugin)
         .add_plugins(SystemInformationDiagnosticsPlugin)
         .add_plugins(DebugLinesPlugin::with_depth_test(true))
         .add_plugins(AtmospherePlugin)
+        // Resources
+        .insert_resource(ChunksLoaded { chunks: vec![] })
         // Systems
         .add_systems(Startup, setup)
-        .add_systems(Update, chunk_border)
-        .add_systems(Update, debug_keyboard)
-        .add_systems(Update, update_text)
+        .add_systems(
+            Update,
+            (chunk_border, debug_keyboard, update_text, chunk_system),
+        )
         .run();
 }
 
-fn setup(
-    mut commands: Commands,
-    asset_server: ResMut<AssetServer>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-) {
-    // Import the custom texture.
-    let custom_texture_handle: Handle<Image> = asset_server.load("textures/yo.png");
-
-    // Create a radius of chunks around the player (in a sphere)
-    for x in -RENDER_DISTANCE..RENDER_DISTANCE {
-        for y in -RENDER_DISTANCE..RENDER_DISTANCE {
-            for z in -RENDER_DISTANCE..RENDER_DISTANCE {
-                let chunk_mesh_handle: Handle<Mesh> =
-                    meshes.add(create_chunk_mesh(IVec3::new(x, y, z)));
-
-                commands.spawn((
-                    PbrBundle {
-                        mesh: chunk_mesh_handle,
-                        material: materials.add(StandardMaterial {
-                            base_color_texture: Some(custom_texture_handle.clone()),
-                            ..default()
-                        }),
-                        ..default()
-                    },
-                    ChunkMesh,
-                ));
-            }
-        }
-    }
-
+fn setup(mut commands: Commands) {
     // Camera in 3D space.
     commands.spawn((
         Camera3dBundle {
@@ -115,16 +98,16 @@ fn setup(
                 .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
             ..default()
         },
-        FogSettings {
-            color: Color::rgba(0.1, 0.1, 0.1, 1.0),
-            directional_light_color: Color::rgba(1.0, 0.95, 0.75, 0.3),
-            directional_light_exponent: 10.0,
-            falloff: FogFalloff::from_visibility_colors(
-                (CHUNK_SIZE * RENDER_DISTANCE as usize - CHUNK_SIZE) as f32, // distance in world units up to which objects retain visibility (>= 5% contrast)
-                Color::BLACK,
-                Color::BLACK,
-            ),
-        },
+        // FogSettings {
+        //     color: Color::rgba(0.1, 0.1, 0.1, 1.0),
+        //     directional_light_color: Color::rgba(1.0, 0.95, 0.75, 0.3),
+        //     directional_light_exponent: 10.0,
+        //     falloff: FogFalloff::from_visibility_colors(
+        //         (CHUNK_SIZE * RENDER_DISTANCE as usize - CHUNK_SIZE) as f32, // distance in world units up to which objects retain visibility (>= 5% contrast)
+        //         Color::BLACK,
+        //         Color::BLACK,
+        //     ),
+        // },
         FlyCam,
         AtmosphereCamera::default(),
     ));
@@ -169,135 +152,69 @@ fn setup(
     ));
 }
 
+fn chunk_system(
+    mut commands: Commands,
+    mut chunks_loaded: ResMut<ChunksLoaded>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    camera_query: Query<&Transform, With<Camera3d>>,
+    asset_server: ResMut<AssetServer>,
+) {
+    // Check for differences between the chunks that are loaded and the chunks that should be loaded.
+    let mut chunks_to_load: Vec<IVec3> = Vec::new();
+    let camera_position = camera_query.single().translation;
+
+    // Calculate the player's chunk position based on their world position.
+    let player_chunk_position = IVec3::new(
+        (camera_position.x / CHUNK_SIZE as f32).floor() as i32,
+        (camera_position.y / CHUNK_SIZE as f32).floor() as i32,
+        (camera_position.z / CHUNK_SIZE as f32).floor() as i32,
+    );
+
+    // Calculate the radius of the sphere around the player.
+    let radius = RENDER_DISTANCE;
+
+    // Loop over each chunk position within the radius.
+    for x in -radius..=radius {
+        for y in -radius..=radius {
+            for z in -radius..=radius {
+                let chunk_position = player_chunk_position + IVec3::new(x, y, z);
+
+                // Check if the chunk is already loaded.
+                if !chunks_loaded.chunks.contains(&chunk_position) {
+                    // Chunk is not loaded, add it to the list of chunks to load.
+                    chunks_to_load.push(chunk_position);
+                }
+            }
+        }
+    }
+
+    // Load the chunks.
+    let custom_texture_handle: Handle<Image> = asset_server.load("textures/yo.png");
+
+    for chunk_position in chunks_to_load {
+        let chunk_mesh_handle: Handle<Mesh> = meshes.add(create_chunk_mesh(chunk_position));
+
+        commands.spawn((
+            PbrBundle {
+                mesh: chunk_mesh_handle,
+                material: materials.add(StandardMaterial {
+                    base_color_texture: Some(custom_texture_handle.clone_weak()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            ChunkMesh,
+        ));
+
+        chunks_loaded.chunks.push(chunk_position);
+    }
+}
+
 fn debug_keyboard(keyboard_input: Res<Input<KeyCode>>) {
     if keyboard_input.just_pressed(KeyCode::F) {
         info!("F");
     }
-}
-
-fn create_cube_mesh() -> Mesh {
-    let mut cube_mesh = Mesh::new(PrimitiveTopology::TriangleList);
-
-    #[rustfmt::skip]
-    cube_mesh.insert_attribute(
-        Mesh::ATTRIBUTE_POSITION,
-        // Each array is an [x, y, z] coordinate in local space.
-        // Meshes always rotate around their local [0, 0, 0] when a rotation is applied to their Transform.
-        // By centering our mesh around the origin, rotating the mesh preserves its center of mass.
-        vec![
-            // top (facing towards +y)
-            [-0.5, 0.5, -0.5], // vertex with index 0
-            [0.5, 0.5, -0.5], // vertex with index 1
-            [0.5, 0.5, 0.5], // etc. until 23
-            [-0.5, 0.5, 0.5],
-            // bottom   (-y)
-            [-0.5, -0.5, -0.5],
-            [0.5, -0.5, -0.5],
-            [0.5, -0.5, 0.5],
-            [-0.5, -0.5, 0.5],
-            // right    (+x)
-            [0.5, -0.5, -0.5],
-            [0.5, -0.5, 0.5],
-            [0.5, 0.5, 0.5], // This vertex is at the same position as vertex with index 2, but they'll have different UV and normal
-            [0.5, 0.5, -0.5],
-            // left     (-x)
-            [-0.5, -0.5, -0.5],
-            [-0.5, -0.5, 0.5],
-            [-0.5, 0.5, 0.5],
-            [-0.5, 0.5, -0.5],
-            // back     (+z)
-            [-0.5, -0.5, 0.5],
-            [-0.5, 0.5, 0.5],
-            [0.5, 0.5, 0.5],
-            [0.5, -0.5, 0.5],
-            // forward  (-z)
-            [-0.5, -0.5, -0.5],
-            [-0.5, 0.5, -0.5],
-            [0.5, 0.5, -0.5],
-            [0.5, -0.5, -0.5],
-        ],
-    );
-
-    // Set-up UV coordinates
-    // Note: (0.0, 0.0) = Top-Left in UV mapping, (1.0, 1.0) = Bottom-Right in UV mapping
-    #[rustfmt::skip]
-    cube_mesh.insert_attribute(
-        Mesh::ATTRIBUTE_UV_0,
-        vec![
-            // Assigning the UV coords for the top side.
-            [0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0],
-            // Assigning the UV coords for the bottom side.
-            [0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0],
-            // Assigning the UV coords for the right side.
-            [0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0],
-            // Assigning the UV coords for the left side. 
-            [0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0],
-            // Assigning the UV coords for the back side.
-            [0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0],
-            // Assigning the UV coords for the forward side.
-            [0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0],
-        ],
-    );
-
-    // For meshes with flat shading, normals are orthogonal (pointing out) from the direction of
-    // the surface.
-    // Normals are required for correct lighting calculations.
-    // Each array represents a normalized vector, which length should be equal to 1.0.
-    #[rustfmt::skip]
-    cube_mesh.insert_attribute(
-        Mesh::ATTRIBUTE_NORMAL,
-        vec![
-            // Normals for the top side (towards +y)
-            [0.0, 1.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 1.0, 0.0],
-            // Normals for the bottom side (towards -y)
-            [0.0, -1.0, 0.0],
-            [0.0, -1.0, 0.0],
-            [0.0, -1.0, 0.0],
-            [0.0, -1.0, 0.0],
-            // Normals for the right side (towards +x)
-            [1.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            // Normals for the left side (towards -x)
-            [-1.0, 0.0, 0.0],
-            [-1.0, 0.0, 0.0],
-            [-1.0, 0.0, 0.0],
-            [-1.0, 0.0, 0.0],
-            // Normals for the back side (towards +z)
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0],
-            // Normals for the forward side (towards -z)
-            [0.0, 0.0, -1.0],
-            [0.0, 0.0, -1.0],
-            [0.0, 0.0, -1.0],
-            [0.0, 0.0, -1.0],
-        ],
-    );
-
-    // Create the triangles out of the 24 vertices we created.
-    // To construct a square, we need 2 triangles, therefore 12 triangles in total.
-    // To construct a triangle, we need the indices of its 3 defined vertices, adding them one
-    // by one, in a counter-clockwise order (relative to the position of the viewer, the order
-    // should appear counter-clockwise from the front of the triangle, in this case from outside the cube).
-    // Read more about how to correctly build a mesh manually in the Bevy documentation of a Mesh,
-    // further examples and the implementation of the built-in shapes.
-    #[rustfmt::skip]
-    cube_mesh.set_indices(Some(Indices::U32(vec![
-        0,3,1 , 1,3,2, // triangles making up the top (+y) facing side.
-        4,5,7 , 5,6,7, // bottom (-y) 
-        8,11,9 , 9,11,10, // right (+x)
-        12,13,15 , 13,14,15, // left (-x)
-        16,19,17 , 17,19,18, // back (+z)
-        20,21,23 , 21,22,23, // forward (-z)
-    ])));
-
-    cube_mesh
 }
 
 /// Creates a 32x32x32 chunk mesh using 3D Perlin noise.
@@ -326,6 +243,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
 
     // Loop over each block position in the chunk.
     // Remember to offset the position by the chunk position.
+    #[allow(clippy::needless_range_loop)]
     for x in 0..CHUNK_SIZE {
         for y in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
