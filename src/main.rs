@@ -5,7 +5,6 @@ use bevy::prelude::*;
 use bevy::render::mesh::Indices;
 use bevy::render::mesh::VertexAttributeValues;
 use bevy::render::render_resource::PrimitiveTopology;
-use bevy::tasks::AsyncComputeTaskPool;
 use bevy_atmosphere::prelude::*;
 use bevy_flycam::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
@@ -13,11 +12,15 @@ use bevy_prototype_debug_lines::*;
 use noise::{NoiseFn, Perlin};
 use std::time::Instant;
 
+mod ivec2xz;
+use ivec2xz::IVec2XZ;
+
 const SEED: u32 = 2137;
-const CHUNK_SIZE: usize = 32;
+const CHUNK_SIZE: usize = 16;
+const CHUNK_HEIGHT: usize = 256;
 const WORLD_SCALE: f64 = 0.1;
 const NOISE_THRESHOLD: f64 = 0.3;
-const RENDER_DISTANCE: i32 = 2;
+const RENDER_DISTANCE: i32 = 6;
 
 #[derive(Component)]
 struct ChunkMesh;
@@ -31,7 +34,7 @@ struct ChunkBorder;
 
 #[derive(Resource)]
 struct ChunksLoaded {
-    chunks: Vec<IVec3>,
+    chunks: Vec<IVec2XZ>,
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -161,13 +164,12 @@ fn chunk_system(
     asset_server: ResMut<AssetServer>,
 ) {
     // Check for differences between the chunks that are loaded and the chunks that should be loaded.
-    let mut chunks_to_load: Vec<IVec3> = Vec::new();
+    let mut chunks_to_load: Vec<IVec2XZ> = Vec::new();
     let camera_position = camera_query.single().translation;
 
     // Calculate the player's chunk position based on their world position.
-    let player_chunk_position = IVec3::new(
+    let player_chunk_position = IVec2XZ::new(
         (camera_position.x / CHUNK_SIZE as f32).floor() as i32,
-        (camera_position.y / CHUNK_SIZE as f32).floor() as i32,
         (camera_position.z / CHUNK_SIZE as f32).floor() as i32,
     );
 
@@ -176,15 +178,13 @@ fn chunk_system(
 
     // Loop over each chunk position within the radius.
     for x in -radius..=radius {
-        for y in -radius..=radius {
-            for z in -radius..=radius {
-                let chunk_position = player_chunk_position + IVec3::new(x, y, z);
+        for z in -radius..=radius {
+            let chunk_position = player_chunk_position + IVec2XZ::new(x, z);
 
-                // Check if the chunk is already loaded.
-                if !chunks_loaded.chunks.contains(&chunk_position) {
-                    // Chunk is not loaded, add it to the list of chunks to load.
-                    chunks_to_load.push(chunk_position);
-                }
+            // Check if the chunk is already loaded.
+            if !chunks_loaded.chunks.contains(&chunk_position) {
+                // Chunk is not loaded, add it to the list of chunks to load.
+                chunks_to_load.push(chunk_position);
             }
         }
     }
@@ -222,7 +222,7 @@ fn debug_keyboard(keyboard_input: Res<Input<KeyCode>>) {
 /// The mesh is created by sampling the noise function at each vertex position.
 /// If the noise value is above a certain threshold, a cube is created at that position.
 /// The chunk_position vec3 is the position of the chunk in the world. It is scaled down by the chunk size.
-fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
+fn create_chunk_mesh(chunk_position: IVec2XZ) -> Mesh {
     // Start the timer.
     let start = Instant::now();
 
@@ -235,8 +235,8 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
     let mut uvs: Vec<[f32; 2]> = Vec::new();
 
     // Generate an array of Blocks, representing whether a cube should be created at that position.
-    let mut chunk_blocks: [[[BlockType; CHUNK_SIZE]; CHUNK_SIZE]; CHUNK_SIZE] =
-        [[[BlockType::Air; CHUNK_SIZE]; CHUNK_SIZE]; CHUNK_SIZE];
+    let mut chunk_blocks: [[[BlockType; CHUNK_SIZE]; CHUNK_HEIGHT]; CHUNK_SIZE] =
+        [[[BlockType::Air; CHUNK_SIZE]; CHUNK_HEIGHT]; CHUNK_SIZE];
 
     // Create a 3D Perlin noise function with a random seed.
     let perlin = Perlin::new(SEED);
@@ -245,11 +245,11 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
     // Remember to offset the position by the chunk position.
     #[allow(clippy::needless_range_loop)]
     for x in 0..CHUNK_SIZE {
-        for y in 0..CHUNK_SIZE {
+        for y in 0..CHUNK_HEIGHT {
             for z in 0..CHUNK_SIZE {
                 // Scale the position down by the chunk size.
                 let scaled_x = x as i32 + (chunk_position.x * CHUNK_SIZE as i32);
-                let scaled_y = y as i32 + (chunk_position.y * CHUNK_SIZE as i32);
+                let scaled_y = y;
                 let scaled_z = z as i32 + (chunk_position.z * CHUNK_SIZE as i32);
                 // info!("Scaled position: {}, {}, {}", scaled_x, scaled_y, scaled_z);
 
@@ -273,7 +273,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
     // Now that the chunk data is generated, check the neighbouring blocks to see if we need to create faces.
     // Loop over each block position in the chunk.
     for x in 0..CHUNK_SIZE {
-        for y in 0..CHUNK_SIZE {
+        for y in 0..CHUNK_HEIGHT {
             for z in 0..CHUNK_SIZE {
                 // Get the block type at the current position.
                 let block_type = chunk_blocks[x][y][z];
@@ -286,7 +286,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                 // Check the blocks around the current block to see if we need to create faces.
 
                 // Check the block above.
-                if y < CHUNK_SIZE - 1 {
+                if y < CHUNK_HEIGHT - 1 {
                     // Get the block type of the block above.
                     let block_above = chunk_blocks[x][y + 1][z];
                     // If the block above is Air, we need to create a face.
@@ -297,7 +297,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                             &mut indices,
                             &mut normals,
                             &mut uvs,
-                            IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                            IVec2XZ::new(chunk_position.x, chunk_position.z),
                             [x as f32, y as f32, z as f32],
                             BlockFace::Top,
                         );
@@ -309,7 +309,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                         &mut indices,
                         &mut normals,
                         &mut uvs,
-                        IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                        IVec2XZ::new(chunk_position.x, chunk_position.z),
                         [x as f32, y as f32, z as f32],
                         BlockFace::Top,
                     );
@@ -327,7 +327,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                             &mut indices,
                             &mut normals,
                             &mut uvs,
-                            IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                            IVec2XZ::new(chunk_position.x, chunk_position.z),
                             [x as f32, y as f32, z as f32],
                             BlockFace::Bottom,
                         );
@@ -339,7 +339,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                         &mut indices,
                         &mut normals,
                         &mut uvs,
-                        IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                        IVec2XZ::new(chunk_position.x, chunk_position.z),
                         [x as f32, y as f32, z as f32],
                         BlockFace::Bottom,
                     );
@@ -357,7 +357,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                             &mut indices,
                             &mut normals,
                             &mut uvs,
-                            IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                            IVec2XZ::new(chunk_position.x, chunk_position.z),
                             [x as f32, y as f32, z as f32],
                             BlockFace::Right,
                         );
@@ -369,7 +369,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                         &mut indices,
                         &mut normals,
                         &mut uvs,
-                        IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                        IVec2XZ::new(chunk_position.x, chunk_position.z),
                         [x as f32, y as f32, z as f32],
                         BlockFace::Right,
                     );
@@ -387,7 +387,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                             &mut indices,
                             &mut normals,
                             &mut uvs,
-                            IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                            IVec2XZ::new(chunk_position.x, chunk_position.z),
                             [x as f32, y as f32, z as f32],
                             BlockFace::Left,
                         );
@@ -399,7 +399,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                         &mut indices,
                         &mut normals,
                         &mut uvs,
-                        IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                        IVec2XZ::new(chunk_position.x, chunk_position.z),
                         [x as f32, y as f32, z as f32],
                         BlockFace::Left,
                     );
@@ -417,7 +417,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                             &mut indices,
                             &mut normals,
                             &mut uvs,
-                            IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                            IVec2XZ::new(chunk_position.x, chunk_position.z),
                             [x as f32, y as f32, z as f32],
                             BlockFace::Front,
                         );
@@ -429,7 +429,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                         &mut indices,
                         &mut normals,
                         &mut uvs,
-                        IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                        IVec2XZ::new(chunk_position.x, chunk_position.z),
                         [x as f32, y as f32, z as f32],
                         BlockFace::Front,
                     );
@@ -447,7 +447,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                             &mut indices,
                             &mut normals,
                             &mut uvs,
-                            IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                            IVec2XZ::new(chunk_position.x, chunk_position.z),
                             [x as f32, y as f32, z as f32],
                             BlockFace::Back,
                         );
@@ -459,7 +459,7 @@ fn create_chunk_mesh(chunk_position: IVec3) -> Mesh {
                         &mut indices,
                         &mut normals,
                         &mut uvs,
-                        IVec3::new(chunk_position.x, chunk_position.y, chunk_position.z),
+                        IVec2XZ::new(chunk_position.x, chunk_position.z),
                         [x as f32, y as f32, z as f32],
                         BlockFace::Back,
                     );
@@ -496,14 +496,14 @@ fn create_face(
     indices: &mut Vec<u32>,
     normals: &mut Vec<[f32; 3]>,
     uvs: &mut Vec<[f32; 2]>,
-    chunk_position: IVec3,
+    chunk_position: IVec2XZ,
     position: [f32; 3],
     direction: BlockFace,
 ) {
     // Offset the position of the face based on the chunk position.
     let position = [
         position[0] + chunk_position.x as f32 * CHUNK_SIZE as f32,
-        position[1] + chunk_position.y as f32 * CHUNK_SIZE as f32,
+        position[1],
         position[2] + chunk_position.z as f32 * CHUNK_SIZE as f32,
     ];
 
@@ -588,11 +588,11 @@ fn chunk_border(
     // Draw a "box" around the selected chunk.
     // Determine the coordinates
     let x1 = CHUNK_SIZE as i32;
-    let y1 = CHUNK_SIZE as i32;
+    let y1 = CHUNK_HEIGHT as i32;
     let z1 = CHUNK_SIZE as i32;
 
     let x2 = x1 - CHUNK_SIZE as i32;
-    let y2 = y1 - CHUNK_SIZE as i32;
+    let y2 = y1 - CHUNK_HEIGHT as i32;
     let z2 = z1 - CHUNK_SIZE as i32;
 
     // Draw the lines.
