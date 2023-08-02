@@ -193,6 +193,7 @@ fn chunk_system(
     let custom_texture_handle: Handle<Image> = asset_server.load("textures/yo.png");
 
     for chunk_position in chunks_to_load {
+        // Create thread to generate chunk mesh.
         let chunk_mesh_handle: Handle<Mesh> = meshes.add(create_chunk_mesh(chunk_position));
 
         commands.spawn((
@@ -522,9 +523,32 @@ fn create_chunk_mesh(chunk_position: IVec2XZ) -> Mesh {
     chunk_mesh
 }
 
-fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
+fn is_block_2d(pos: IVec3, perlin: &Perlin) -> BlockType {
     // Sample the noise function at the scaled position.
     // The perlin noise needs a float value, so we need to cast the scaled position to a float.
+
+    // 2d perlin noise
+    let noise_value =
+        perlin.get([pos.x as f64 * WORLD_SCALE, pos.z as f64 * WORLD_SCALE]) + 1.0 / 2.0; // + 1.0 / 2.0 to get values between 0 and 1
+
+    //treat this as height map
+    let size = CHUNK_SIZE as f64 / 2.0;
+
+    let height = (noise_value * size) as i32 + CHUNK_HEIGHT as i32 - size as i32;
+
+    // calculate block type given block position and height
+    if pos.y < height {
+        BlockType::Dirt
+    } else {
+        BlockType::Air
+    }
+}
+
+fn is_block_3d(pos: IVec3, perlin: &Perlin) -> BlockType {
+    // Sample the noise function at the scaled position.
+    // The perlin noise needs a float value, so we need to cast the scaled position to a float.
+
+    // 3d perlin noise
     let noise_value = perlin.get([
         pos.x as f64 * WORLD_SCALE,
         pos.y as f64 * WORLD_SCALE,
@@ -532,10 +556,21 @@ fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
     ]);
 
     // If the noise value is above the threshold, create a cube at that position.
-    if noise_value > NOISE_THRESHOLD {
+    if noise_value < NOISE_THRESHOLD {
         BlockType::Dirt
     } else {
         BlockType::Air
+    }
+}
+
+fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
+    let two_noise_value = is_block_2d(pos, perlin);
+    let three_noise_value = is_block_3d(pos, perlin);
+
+    if pos.y > CHUNK_HEIGHT as i32 - CHUNK_SIZE as i32 {
+        two_noise_value
+    } else {
+        three_noise_value
     }
 }
 
