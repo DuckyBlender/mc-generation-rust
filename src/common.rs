@@ -4,8 +4,9 @@ pub const RENDER_DISTANCE: i32 = 6;
 pub const SEED: u32 = 2137;
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_HEIGHT: usize = 256;
-pub const WORLD_SCALE: f64 = 0.1;
+pub const WORLD_SCALE: f64 = 0.06;
 pub const NOISE_THRESHOLD: f64 = 0.3;
+pub const TERRAIN_HEIGHT: i32 = 160;
 
 // === COMPONENTS ===
 
@@ -25,12 +26,16 @@ pub struct ChunksLoaded {
     pub chunks: Vec<IVec2XZ>,
 }
 
+#[derive(Resource)]
+pub struct Generating(pub bool);
+
 // === ENUMS ===
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub enum BlockType {
     Air,
     Dirt,
+    Bedrock,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

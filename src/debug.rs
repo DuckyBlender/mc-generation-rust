@@ -3,9 +3,23 @@ use bevy_prototype_debug_lines::DebugLines;
 
 use crate::common::*;
 
-pub fn debug_keyboard(keyboard_input: Res<Input<KeyCode>>) {
-    if keyboard_input.just_pressed(KeyCode::F) {
-        info!("F");
+pub fn debug_keyboard(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut generating: ResMut<Generating>,
+    mut commands: Commands,
+    chunk_query: Query<Entity, With<ChunkMesh>>,
+    mut chunks_loaded: ResMut<ChunksLoaded>,
+) {
+    if keyboard_input.just_pressed(KeyCode::P) {
+        // Toggle the generating resource.
+        generating.0 = !generating.0;
+    }
+    if keyboard_input.just_pressed(KeyCode::R) {
+        // Delete all chunks.
+        for entity in chunk_query.iter() {
+            commands.entity(entity).despawn_recursive();
+        }
+        chunks_loaded.chunks = vec![];
     }
 }
 

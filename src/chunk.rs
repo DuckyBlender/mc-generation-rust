@@ -245,7 +245,13 @@ pub fn chunk_system(
     mut materials: ResMut<Assets<StandardMaterial>>,
     camera_query: Query<&Transform, With<Camera3d>>,
     asset_server: ResMut<AssetServer>,
+    generating: Res<Generating>,
 ) {
+    // Check if the world is generating.
+    if !generating.0 {
+        return;
+    }
+
     // Check for differences between the chunks that are loaded and the chunks that should be loaded.
     let mut chunks_to_load: Vec<IVec2XZ> = Vec::new();
     let camera_position = camera_query.single().translation;
@@ -298,18 +304,24 @@ pub fn chunk_system(
 fn is_block_2d(pos: IVec3, perlin: &Perlin) -> BlockType {
     // Sample the noise function at the scaled position.
     // The perlin noise needs a float value, so we need to cast the scaled position to a float.
+    // TODO: Implement more 2d noise functions for more varied terrain.
 
     // 2d perlin noise
-    let noise_value =
-        perlin.get([pos.x as f64 * WORLD_SCALE, pos.z as f64 * WORLD_SCALE]) + 1.0 / 2.0; // + 1.0 / 2.0 to get values between 0 and 1
+    let noise_value = perlin.get([pos.x as f64 * WORLD_SCALE, pos.z as f64 * WORLD_SCALE]);
 
-    //treat this as height map
-    let size = CHUNK_SIZE as f64 / 2.0;
-
-    let height = (noise_value * size) as i32 + CHUNK_HEIGHT as i32 - size as i32;
+    // Change values (-1, 1) -> (TERRAIN_HEIGHT, MAX_HEIGHT)
+    let cieling_margin = 80;
+    let max_height = CHUNK_HEIGHT - cieling_margin;
+    let height = remap(
+        noise_value as f32,
+        -1.,
+        1.,
+        TERRAIN_HEIGHT as f32,
+        max_height as f32,
+    );
 
     // calculate block type given block position and height
-    if pos.y < height {
+    if pos.y < height as i32 {
         BlockType::Dirt
     } else {
         BlockType::Air
@@ -336,12 +348,31 @@ fn is_block_3d(pos: IVec3, perlin: &Perlin) -> BlockType {
 }
 
 fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
+    // If the block is at y0, create a bedrock block.
+    if pos.y == 0 {
+        return BlockType::Bedrock;
+    }
+
     let two_noise_value = is_block_2d(pos, perlin);
     let three_noise_value = is_block_3d(pos, perlin);
 
-    if pos.y > CHUNK_HEIGHT as i32 - CHUNK_SIZE as i32 {
+    if pos.y > TERRAIN_HEIGHT {
         two_noise_value
     } else {
         three_noise_value
     }
+}
+
+/// The function that is used to interpolate between the noise values.
+///
+/// This function is used to make caves and land coexist. It's a smooth linear line from 0 to 256.
+/// TODO: Implement this into is_block in a way that makes sense.
+fn noise_interpolation(y: i32) -> i32 {
+    // Linear interpolation
+    (y as f32 * 256.0 / CHUNK_HEIGHT as f32) as i32
+}
+
+/// Remaps a value from one range to another.
+fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {
+    (value - from_min) / (from_max - from_min) * (to_max - to_min) + to_min
 }

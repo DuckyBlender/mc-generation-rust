@@ -50,8 +50,9 @@ fn main() {
         .add_plugins(AtmospherePlugin)
         // Resources
         .insert_resource(ChunksLoaded { chunks: vec![] })
+        .insert_resource(Generating(true))
         // Systems
-        .add_systems(Startup, (setup, spawn_crosshair))
+        .add_systems(Startup, (setup, setup_hud))
         .add_systems(
             Update,
             (chunk_border, debug_keyboard, update_text, chunk_system),
@@ -63,7 +64,7 @@ fn setup(mut commands: Commands) {
     // Camera in 3D space.
     commands.spawn((
         Camera3dBundle {
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0))
+            transform: Transform::from_translation(Vec3::new(0.0, 200.0, 0.0))
                 .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
             ..default()
         },
@@ -101,24 +102,6 @@ fn setup(mut commands: Commands) {
         cascade_shadow_config,
         ..default()
     });
-
-    // Text to display FPS
-    commands.spawn((
-        TextBundle::from_section(
-            "".to_string(),
-            TextStyle {
-                font_size: 20.0,
-                ..default()
-            },
-        )
-        .with_style(Style {
-            position_type: PositionType::Absolute,
-            bottom: Val::Px(20.0),
-            left: Val::Px(12.0),
-            ..default()
-        }),
-        TextChanges,
-    ));
 }
 
 // this is in tests.rs
