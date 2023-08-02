@@ -195,16 +195,16 @@ fn create_face(
         ],
 
         BlockFace::Left => [
+            [position[0], position[1] + 1.0, position[2] + 1.0],
             [position[0], position[1] + 1.0, position[2]],
             [position[0], position[1], position[2]],
             [position[0], position[1], position[2] + 1.0],
-            [position[0], position[1] + 1.0, position[2] + 1.0],
         ],
         BlockFace::Right => [
+            [position[0] + 1.0, position[1] + 1.0, position[2]],
             [position[0] + 1.0, position[1] + 1.0, position[2] + 1.0],
             [position[0] + 1.0, position[1], position[2] + 1.0],
             [position[0] + 1.0, position[1], position[2]],
-            [position[0] + 1.0, position[1] + 1.0, position[2]],
         ],
         BlockFace::Front => [
             [position[0] + 1.0, position[1] + 1.0, position[2] + 1.0],
