@@ -29,6 +29,7 @@ cargo run --release
 - [x] Add more textures (grass, dirt, stone, etc.) (correct orientation)
 - [x] Add a skybox
 - [x] Add a surface generator
+- [x] Multithreading (chunk generation, meshing, etc.)
 - [ ] Add a player controller (first person) [TOP PRIORITY]
 - [ ] Blend the surface generator nicely
 - [ ] Add block breaking and placing

@@ -16,6 +16,7 @@ bevy_rapier3d = { version = "0.22", features = [
     "simd-stable",
     "debug-render-3d",
 ] }
+futures-lite = "1.13.0"
 
 [workspace]
 resolver = "2" # Important! wgpu/Bevy needs this!

@@ -60,7 +60,13 @@ fn main() {
         .add_systems(Startup, (setup, setup_hud))
         .add_systems(
             Update,
-            (chunk_border, debug_keyboard, update_text, chunk_system),
+            (
+                chunk_border,
+                debug_keyboard,
+                update_text,
+                chunk_system,
+                handle_mesh_tasks,
+            ),
         )
         .run();
 }

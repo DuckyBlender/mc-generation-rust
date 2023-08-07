@@ -1,5 +1,4 @@
-use std::time::Instant;
-
+use bevy::tasks::AsyncComputeTaskPool;
 use bevy::{
     prelude::*,
     render::{
@@ -8,7 +7,10 @@ use bevy::{
     },
 };
 use bevy_rapier3d::prelude::*;
+use futures_lite::future;
 use noise::{NoiseFn, Perlin};
+use std::collections::HashSet;
+use std::time::Instant;
 
 use crate::{common::*, BlockType, ChunksLoaded};
 
@@ -150,7 +152,10 @@ fn create_chunk_mesh(chunk_position: IVec2XZ, game_texture: GameTextureAtlas) ->
 
     // Stop the timer
     let elapsed = start.elapsed();
-    info!("Chunk generation took: {:?}", elapsed);
+    info!(
+        "Chunk generation @ {:?} took: {:?}",
+        chunk_position, elapsed
+    );
 
     chunk_mesh
 }
@@ -273,9 +278,7 @@ fn create_face(
 pub fn chunk_system(
     mut chunks_loaded: ResMut<ChunksLoaded>,
     mut chunk_query: Query<(Entity, &ChunkMesh)>,
-    mut meshes: ResMut<Assets<Mesh>>,
     mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     camera_query: Query<&Transform, With<Camera3d>>,
     generating: Res<Generating>,
     game_atlas: Res<GameTextureAtlas>,
@@ -285,10 +288,13 @@ pub fn chunk_system(
         return;
     }
 
-    // Check for differences between the chunks that are loaded and the chunks that should be loaded.
-    let mut chunks_to_load: Vec<IVec2XZ> = Vec::new();
-    let mut chunks_to_unload: Vec<IVec2XZ> = Vec::new();
+    let task_pool = AsyncComputeTaskPool::get();
 
+    // Check for differences between the chunks that are loaded and the chunks that should be loaded.
+    let mut chunks_to_load: HashSet<IVec2XZ> = HashSet::new();
+    let mut chunks_to_unload: HashSet<IVec2XZ> = HashSet::new();
+
+    // Get the camera position.
     let camera_position = camera_query.single().translation;
 
     // Calculate the player's chunk position based on their world position.
@@ -300,8 +306,7 @@ pub fn chunk_system(
     // Calculate the radius of the sphere around the player.
     let radius = RENDER_DISTANCE;
 
-    // Loop over each chunk position within the radius in a circle. To do this, we use the equation of a circle.
-    // x^2 + y^2 = r^2
+    // Check for chunks to load in a circle.
     for x in -radius..=radius {
         for z in -radius..=radius {
             // Check if the chunk position is within the circle.
@@ -311,27 +316,75 @@ pub fn chunk_system(
                 // Check if the chunk is already loaded.
                 if !chunks_loaded.chunks.contains(&chunk_position) {
                     // Chunk is not loaded, add it to the list of chunks to load.
-                    chunks_to_load.push(chunk_position);
+                    chunks_to_load.insert(chunk_position);
                 }
             }
         }
     }
 
+    // Check for chunks to unload in a circle.
+    for loaded_chunk_position in chunks_loaded.chunks.iter() {
+        let distance = *loaded_chunk_position - player_chunk_position;
+
+        // Check if the chunk is outside the render distance.
+        if distance.x * distance.x + distance.z * distance.z > radius * radius {
+            chunks_to_unload.insert(*loaded_chunk_position);
+        }
+    }
+
     // Load the chunks.
+    for chunk_position in chunks_to_load {
+        // Spawn a new task to generate chunk mesh.
+        let game_atlas = game_atlas.clone();
+        let task = task_pool.spawn(async move { create_chunk_mesh(chunk_position, game_atlas) });
+
+        // Add the task as a component to a new entity.
+        commands.spawn((
+            ComputeMeshTask(task),
+            ChunkMesh {
+                position: chunk_position,
+            },
+        ));
+
+        chunks_loaded.chunks.push(chunk_position);
+    }
+
+    // Unload the chunks.
+    info!("Unloading {} chunks", chunks_to_unload.len());
+    for chunk_position in chunks_to_unload {
+        // Find the entity corresponding to the chunk.
+        for (entity, chunk_mesh) in chunk_query.iter_mut() {
+            if chunk_mesh.position == chunk_position {
+                // Despawn the entity.
+                commands.entity(entity).despawn_recursive();
+
+                // Remove the chunk from the loaded chunks.
+                chunks_loaded.chunks.retain(|&x| x != chunk_position);
+                break;
+            }
+        }
+    }
+}
+
+pub fn handle_mesh_tasks(
+    mut commands: Commands,
+    mut mesh_tasks: Query<(Entity, &mut ComputeMeshTask)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    game_atlas: Res<GameTextureAtlas>,
+) {
     let texture = game_atlas.0.texture.clone_weak();
 
-    for chunk_position in chunks_to_load {
-        // TODO: Create thread to generate chunk mesh.
-        let chunk_mesh = create_chunk_mesh(chunk_position, game_atlas.clone());
+    for (entity, mut task) in &mut mesh_tasks {
+        if let Some(chunk_mesh) = future::block_on(future::poll_once(&mut task.0)) {
+            let chunk_mesh_handle: Handle<Mesh> = meshes.add(chunk_mesh);
 
-        let chunk_mesh_handle: Handle<Mesh> = meshes.add(chunk_mesh);
+            // Get the vertices and indices from the mesh. This is needed to create the collider.
+            let (vertices, indices) = get_verts_indices(meshes.get(&chunk_mesh_handle).unwrap());
 
-        // Get the vertices and indices from the mesh. This is needed to create the collider.
-        let (vertices, indices) = get_verts_indices(meshes.get(&chunk_mesh_handle).unwrap());
-
-        commands
-            .spawn((
-                PbrBundle {
+            commands
+                .entity(entity)
+                .insert(PbrBundle {
                     mesh: chunk_mesh_handle,
                     material: materials.add(StandardMaterial {
                         base_color_texture: Some(texture.clone()),
@@ -339,38 +392,11 @@ pub fn chunk_system(
                         ..Default::default()
                     }),
                     ..Default::default()
-                },
-                ChunkMesh {
-                    position: chunk_position,
-                },
-            ))
-            .insert(Collider::trimesh(vertices, indices));
+                })
+                .insert(Collider::trimesh(vertices, indices));
 
-        chunks_loaded.chunks.push(chunk_position);
-    }
-
-    // Check for chunks to unload.
-    for loaded_chunk_position in chunks_loaded.chunks.iter() {
-        let distance = *loaded_chunk_position - player_chunk_position;
-
-        // Check if the chunk is outside the render distance.
-        if distance.x * distance.x + distance.z * distance.z > radius * radius {
-            chunks_to_unload.push(*loaded_chunk_position);
-        }
-    }
-
-    // Unload the chunks.
-    for chunk_position in chunks_to_unload {
-        // Find the entity corresponding to the chunk.
-        for (entity, chunk_mesh) in chunk_query.iter_mut() {
-            if chunk_mesh.position == chunk_position {
-                // Despawn the entity.
-                commands.entity(entity).despawn();
-
-                // Remove the chunk from the loaded chunks.
-                chunks_loaded.chunks.retain(|&x| x != chunk_position);
-                break;
-            }
+            // Task is complete, so remove task component from entity
+            commands.entity(entity).remove::<ComputeMeshTask>();
         }
     }
 }

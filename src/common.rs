@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, tasks::Task};
 
 pub const RENDER_DISTANCE: i32 = 8;
 pub const SEED: u32 = 2137;
@@ -14,6 +14,9 @@ pub const TERRAIN_HEIGHT: i32 = 160;
 pub struct ChunkMesh {
     pub position: IVec2XZ,
 }
+
+#[derive(Component)]
+pub struct ComputeMeshTask(pub Task<Mesh>);
 
 #[derive(Component)]
 pub struct ChunkBorder;
@@ -59,7 +62,7 @@ pub enum BlockFace {
 
 // === IVEC2XZ ===
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct IVec2XZ {
     pub x: i32,
     pub z: i32,
@@ -68,10 +71,6 @@ pub struct IVec2XZ {
 impl IVec2XZ {
     pub fn new(x: i32, z: i32) -> Self {
         IVec2XZ { x, z }
-    }
-
-    pub fn length_squared(&self) -> i32 {
-        self.x * self.x + self.z * self.z
     }
 }
 
