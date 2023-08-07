@@ -7,6 +7,7 @@ use bevy_flycam::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_prototype_debug_lines::*;
 use bevy_rapier3d::prelude::*;
+use color_eyre::eyre::Result;
 
 mod common;
 use common::*;
@@ -20,7 +21,9 @@ use debug::*;
 mod chunk;
 use chunk::*;
 
-fn main() {
+fn main() -> Result<()> {
+    color_eyre::install()?;
+
     let window = WindowPlugin {
         primary_window: Some(Window {
             title: "Bevy Voxel Demonstration".into(),
@@ -69,6 +72,8 @@ fn main() {
             ),
         )
         .run();
+
+    Ok(())
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {

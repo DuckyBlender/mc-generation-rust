@@ -17,6 +17,7 @@ bevy_rapier3d = { version = "0.22", features = [
     "debug-render-3d",
 ] }
 futures-lite = "1.13.0"
+color-eyre = "0.5"
 
 [workspace]
 resolver = "2" # Important! wgpu/Bevy needs this!
@@ -35,3 +36,7 @@ opt-level = 3
 
 [profile.release]
 codegen-units = 1
+
+# Fast color-eyre
+[profile.dev.package.backtrace]
+opt-level = 3

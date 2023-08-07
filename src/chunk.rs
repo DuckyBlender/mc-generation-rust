@@ -350,7 +350,7 @@ pub fn chunk_system(
     }
 
     // Unload the chunks.
-    info!("Unloading {} chunks", chunks_to_unload.len());
+    // info!("Unloading {} chunks", chunks_to_unload.len());
     for chunk_position in chunks_to_unload {
         // Find the entity corresponding to the chunk.
         for (entity, chunk_mesh) in chunk_query.iter_mut() {
@@ -388,7 +388,6 @@ pub fn handle_mesh_tasks(
                     mesh: chunk_mesh_handle,
                     material: materials.add(StandardMaterial {
                         base_color_texture: Some(texture.clone()),
-
                         ..Default::default()
                     }),
                     ..Default::default()

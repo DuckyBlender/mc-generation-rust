@@ -1,6 +1,6 @@
 use bevy::{prelude::*, tasks::Task};
 
-pub const RENDER_DISTANCE: i32 = 8;
+pub const RENDER_DISTANCE: i32 = 12;
 pub const SEED: u32 = 2137;
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_HEIGHT: usize = 256;
