@@ -26,10 +26,11 @@ cargo run --release
 - [x] Implement a crude cube spawning system thingy
 - [x] Optimize it using a chunk system and meshing
 - [x] Fix chunk borders (don't render the faces that are touching other chunks but connect them seamlessly)
-- [ ] Add a surface generator and blend it using a function
 - [x] Add more textures (grass, dirt, stone, etc.) (correct orientation)
 - [x] Add a skybox
-- [ ] Add players
+- [x] Add a surface generator
+- [ ] Add a player controller (first person) [TOP PRIORITY]
+- [ ] Blend the surface generator nicely
 - [ ] Add block breaking and placing
 - [ ] Add a UI
 

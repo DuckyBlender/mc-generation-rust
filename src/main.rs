@@ -79,16 +79,14 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
             ..default()
         },
-        // FogSettings {
-        //     color: Color::rgba(0.1, 0.1, 0.1, 1.0),
-        //     directional_light_color: Color::rgba(1.0, 0.95, 0.75, 0.3),
-        //     directional_light_exponent: 10.0,
-        //     falloff: FogFalloff::from_visibility_colors(
-        //         (CHUNK_SIZE * RENDER_DISTANCE as usize - CHUNK_SIZE) as f32, // distance in world units up to which objects retain visibility (>= 5% contrast)
-        //         Color::BLACK,
-        //         Color::BLACK,
-        //     ),
-        // },
+        FogSettings {
+            color: Color::rgba(0.05, 0.05, 0.05, 1.0),
+            falloff: FogFalloff::Linear {
+                start: RENDER_DISTANCE as f32 * CHUNK_SIZE as f32 * 0.8,
+                end: RENDER_DISTANCE as f32 * CHUNK_SIZE as f32 * 0.95,
+            },
+            ..default()
+        },
         FlyCam,
         AtmosphereCamera::default(),
     ));
