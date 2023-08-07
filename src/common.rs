@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-pub const RENDER_DISTANCE: i32 = 6;
+pub const RENDER_DISTANCE: i32 = 8;
 pub const SEED: u32 = 2137;
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_HEIGHT: usize = 256;
@@ -29,13 +29,20 @@ pub struct ChunksLoaded {
 #[derive(Resource)]
 pub struct Generating(pub bool);
 
+#[derive(Resource, Clone)]
+pub struct GameTextureAtlas(pub TextureAtlas);
+
 // === ENUMS ===
 
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Debug, Copy, Clone, Default)]
 pub enum BlockType {
-    Air,
-    Dirt,
     Bedrock,
+    Stone,
+    Dirt,
+    Grass,
+    Log,
+    #[default]
+    Air,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

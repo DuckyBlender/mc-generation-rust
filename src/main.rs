@@ -60,7 +60,13 @@ fn main() {
         .run();
 }
 
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    // Setup texture atlas
+    let texture_handle = asset_server.load("textures/spritesheet.png");
+    let texture_atlas =
+        TextureAtlas::from_grid(texture_handle, Vec2::new(32.0, 32.0), 2, 3, None, None);
+    commands.insert_resource(GameTextureAtlas(texture_atlas));
+
     // Camera in 3D space.
     commands.spawn((
         Camera3dBundle {

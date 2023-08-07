@@ -12,7 +12,7 @@ use noise::{NoiseFn, Perlin};
 use crate::{common::*, BlockType, ChunksLoaded};
 
 /// Creates a 16x256x16 chunk mesh using a combination of 3D and 2D Perlin noise.
-fn create_chunk_mesh(chunk_position: IVec2XZ) -> Mesh {
+fn create_chunk_mesh(chunk_position: IVec2XZ, game_texture: GameTextureAtlas) -> Mesh {
     // Start the timer.
     let start = Instant::now();
 
@@ -104,6 +104,9 @@ fn create_chunk_mesh(chunk_position: IVec2XZ) -> Mesh {
                                 IVec2XZ::new(chunk_position.x, chunk_position.z),
                                 [x as f32, y as f32, z as f32],
                                 face,
+                                block_type,
+                                &game_texture.0.textures,
+                                &game_texture.0.size,
                             );
                         }
                     } else {
@@ -121,6 +124,9 @@ fn create_chunk_mesh(chunk_position: IVec2XZ) -> Mesh {
                                 IVec2XZ::new(chunk_position.x, chunk_position.z),
                                 [x as f32, y as f32, z as f32],
                                 face,
+                                block_type,
+                                &game_texture.0.textures,
+                                &game_texture.0.size,
                             );
                         }
                     }
@@ -157,6 +163,9 @@ fn create_face(
     chunk_position: IVec2XZ,
     position: [f32; 3],
     direction: BlockFace,
+    block: BlockType,
+    textures: &[Rect],
+    size: &Vec2,
 ) {
     // Offset the position of the face based on the chunk position.
     let position = [
@@ -224,8 +233,30 @@ fn create_face(
     vertices.extend_from_slice(&face_vertices);
     normals.extend_from_slice(&[normal; 4]);
 
+    let texture = match block {
+        BlockType::Bedrock => textures[0],
+        BlockType::Stone => textures[1],
+        BlockType::Dirt => textures[2],
+        BlockType::Grass => {
+            if direction == BlockFace::Top {
+                textures[3]
+            } else {
+                textures[4]
+            }
+        }
+        BlockType::Log => textures[5],
+        BlockType::Air => textures[0], // todo: make this not cringe
+    };
+
+    let uv = [
+        [texture.min.x / size.x, texture.min.y / size.y],
+        [texture.max.x / size.x, texture.min.y / size.y],
+        [texture.max.x / size.x, texture.max.y / size.y],
+        [texture.min.x / size.x, texture.max.y / size.y],
+    ];
+
     // Add the UV coordinates to the vector.
-    uvs.extend_from_slice(&[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]);
+    uvs.extend_from_slice(&uv);
 
     // Add the indices to the vector. This is clockwise order.
     indices.extend_from_slice(&[
@@ -244,8 +275,8 @@ pub fn chunk_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     camera_query: Query<&Transform, With<Camera3d>>,
-    asset_server: ResMut<AssetServer>,
     generating: Res<Generating>,
+    game_atlas: Res<GameTextureAtlas>,
 ) {
     // Check if the world is generating.
     if !generating.0 {
@@ -279,17 +310,20 @@ pub fn chunk_system(
     }
 
     // Load the chunks.
-    let custom_texture_handle: Handle<Image> = asset_server.load("textures/stone.png");
+    let texture = game_atlas.0.texture.clone_weak();
 
     for chunk_position in chunks_to_load {
         // Create thread to generate chunk mesh.
-        let chunk_mesh_handle: Handle<Mesh> = meshes.add(create_chunk_mesh(chunk_position));
+
+        let chunk_mesh_handle: Handle<Mesh> =
+            meshes.add(create_chunk_mesh(chunk_position, game_atlas.clone()));
 
         commands.spawn((
             PbrBundle {
                 mesh: chunk_mesh_handle,
                 material: materials.add(StandardMaterial {
-                    base_color_texture: Some(custom_texture_handle.clone_weak()),
+                    base_color_texture: Some(texture.clone()),
+
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -321,10 +355,11 @@ fn is_block_2d(pos: IVec3, perlin: &Perlin) -> BlockType {
     );
 
     // calculate block type given block position and height
-    if pos.y < height as i32 {
-        BlockType::Dirt
-    } else {
-        BlockType::Air
+    match pos.y {
+        y if y == 0 => BlockType::Bedrock,
+        y if y < height as i32 => BlockType::Dirt,
+        y if y == height as i32 => BlockType::Grass,
+        _ => BlockType::Air,
     }
 }
 
@@ -341,7 +376,7 @@ fn is_block_3d(pos: IVec3, perlin: &Perlin) -> BlockType {
 
     // If the noise value is above the threshold, create a cube at that position.
     if noise_value < NOISE_THRESHOLD {
-        BlockType::Dirt
+        BlockType::Stone
     } else {
         BlockType::Air
     }
