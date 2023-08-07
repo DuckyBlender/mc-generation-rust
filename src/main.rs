@@ -6,6 +6,7 @@ use bevy_atmosphere::prelude::*;
 use bevy_flycam::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_prototype_debug_lines::*;
+use bevy_rapier3d::prelude::*;
 
 mod common;
 use common::*;
@@ -43,15 +44,19 @@ fn main() {
             sensitivity: 0.00015, // default: 0.00012
             speed: 30.0,          // default: 12.0
         })
+        // == Plugins ==
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(FrameTimeDiagnosticsPlugin)
         .add_plugins(SystemInformationDiagnosticsPlugin)
         .add_plugins(DebugLinesPlugin::with_depth_test(true))
         .add_plugins(AtmospherePlugin)
-        // Resources
+        // Rapier
+        .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
+        // .add_plugins(RapierDebugRenderPlugin::default())
+        // == Resources ==
         .insert_resource(ChunksLoaded { chunks: vec![] })
         .insert_resource(Generating(true))
-        // Systems
+        // == Systems ==
         .add_systems(Startup, (setup, setup_hud))
         .add_systems(
             Update,

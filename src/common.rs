@@ -11,7 +11,9 @@ pub const TERRAIN_HEIGHT: i32 = 160;
 // === COMPONENTS ===
 
 #[derive(Component)]
-pub struct ChunkMesh;
+pub struct ChunkMesh {
+    pub position: IVec2XZ,
+}
 
 #[derive(Component)]
 pub struct ChunkBorder;
@@ -67,6 +69,10 @@ impl IVec2XZ {
     pub fn new(x: i32, z: i32) -> Self {
         IVec2XZ { x, z }
     }
+
+    pub fn length_squared(&self) -> i32 {
+        self.x * self.x + self.z * self.z
+    }
 }
 
 impl std::ops::Add for IVec2XZ {
@@ -74,5 +80,13 @@ impl std::ops::Add for IVec2XZ {
 
     fn add(self, rhs: Self) -> Self::Output {
         Self::new(self.x + rhs.x, self.z + rhs.z)
+    }
+}
+
+impl std::ops::Sub for IVec2XZ {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::new(self.x - rhs.x, self.z - rhs.z)
     }
 }

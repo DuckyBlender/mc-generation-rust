@@ -7,6 +7,7 @@ use bevy::{
         render_resource::PrimitiveTopology,
     },
 };
+use bevy_rapier3d::prelude::*;
 use noise::{NoiseFn, Perlin};
 
 use crate::{common::*, BlockType, ChunksLoaded};
@@ -270,9 +271,10 @@ fn create_face(
 }
 
 pub fn chunk_system(
-    mut commands: Commands,
     mut chunks_loaded: ResMut<ChunksLoaded>,
+    mut chunk_query: Query<(Entity, &ChunkMesh)>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     camera_query: Query<&Transform, With<Camera3d>>,
     generating: Res<Generating>,
@@ -285,6 +287,8 @@ pub fn chunk_system(
 
     // Check for differences between the chunks that are loaded and the chunks that should be loaded.
     let mut chunks_to_load: Vec<IVec2XZ> = Vec::new();
+    let mut chunks_to_unload: Vec<IVec2XZ> = Vec::new();
+
     let camera_position = camera_query.single().translation;
 
     // Calculate the player's chunk position based on their world position.
@@ -296,15 +300,19 @@ pub fn chunk_system(
     // Calculate the radius of the sphere around the player.
     let radius = RENDER_DISTANCE;
 
-    // Loop over each chunk position within the radius.
+    // Loop over each chunk position within the radius in a circle. To do this, we use the equation of a circle.
+    // x^2 + y^2 = r^2
     for x in -radius..=radius {
         for z in -radius..=radius {
-            let chunk_position = player_chunk_position + IVec2XZ::new(x, z);
+            // Check if the chunk position is within the circle.
+            if x * x + z * z <= radius * radius {
+                let chunk_position = player_chunk_position + IVec2XZ::new(x, z);
 
-            // Check if the chunk is already loaded.
-            if !chunks_loaded.chunks.contains(&chunk_position) {
-                // Chunk is not loaded, add it to the list of chunks to load.
-                chunks_to_load.push(chunk_position);
+                // Check if the chunk is already loaded.
+                if !chunks_loaded.chunks.contains(&chunk_position) {
+                    // Chunk is not loaded, add it to the list of chunks to load.
+                    chunks_to_load.push(chunk_position);
+                }
             }
         }
     }
@@ -313,25 +321,57 @@ pub fn chunk_system(
     let texture = game_atlas.0.texture.clone_weak();
 
     for chunk_position in chunks_to_load {
-        // Create thread to generate chunk mesh.
+        // TODO: Create thread to generate chunk mesh.
+        let chunk_mesh = create_chunk_mesh(chunk_position, game_atlas.clone());
 
-        let chunk_mesh_handle: Handle<Mesh> =
-            meshes.add(create_chunk_mesh(chunk_position, game_atlas.clone()));
+        let chunk_mesh_handle: Handle<Mesh> = meshes.add(chunk_mesh);
 
-        commands.spawn((
-            PbrBundle {
-                mesh: chunk_mesh_handle,
-                material: materials.add(StandardMaterial {
-                    base_color_texture: Some(texture.clone()),
+        // Get the vertices and indices from the mesh. This is needed to create the collider.
+        let (vertices, indices) = get_verts_indices(meshes.get(&chunk_mesh_handle).unwrap());
 
+        commands
+            .spawn((
+                PbrBundle {
+                    mesh: chunk_mesh_handle,
+                    material: materials.add(StandardMaterial {
+                        base_color_texture: Some(texture.clone()),
+
+                        ..Default::default()
+                    }),
                     ..Default::default()
-                }),
-                ..Default::default()
-            },
-            ChunkMesh,
-        ));
+                },
+                ChunkMesh {
+                    position: chunk_position,
+                },
+            ))
+            .insert(Collider::trimesh(vertices, indices));
 
         chunks_loaded.chunks.push(chunk_position);
+    }
+
+    // Check for chunks to unload.
+    for loaded_chunk_position in chunks_loaded.chunks.iter() {
+        let distance = *loaded_chunk_position - player_chunk_position;
+
+        // Check if the chunk is outside the render distance.
+        if distance.x * distance.x + distance.z * distance.z > radius * radius {
+            chunks_to_unload.push(*loaded_chunk_position);
+        }
+    }
+
+    // Unload the chunks.
+    for chunk_position in chunks_to_unload {
+        // Find the entity corresponding to the chunk.
+        for (entity, chunk_mesh) in chunk_query.iter_mut() {
+            if chunk_mesh.position == chunk_position {
+                // Despawn the entity.
+                commands.entity(entity).despawn();
+
+                // Remove the chunk from the loaded chunks.
+                chunks_loaded.chunks.retain(|&x| x != chunk_position);
+                break;
+            }
+        }
     }
 }
 
@@ -410,4 +450,30 @@ fn noise_interpolation(y: i32) -> i32 {
 /// Remaps a value from one range to another.
 fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {
     (value - from_min) / (from_max - from_min) * (to_max - to_min) + to_min
+}
+
+// Got this from bevy discord
+// https://discord.com/channels/691052431525675048/1015147097458212864/1015147294804430848
+pub fn get_verts_indices(mesh: &Mesh) -> (Vec<Vec3>, Vec<[u32; 3]>) {
+    let vertices = match mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
+        None => panic!("Mesh does not contain vertex positions"),
+        Some(vertex_values) => match &vertex_values {
+            VertexAttributeValues::Float32x3(positions) => positions
+                .iter()
+                .map(|[x, y, z]| Vec3::new(*x, *y, *z))
+                .collect(),
+            _ => panic!("Unexpected types in {:?}", Mesh::ATTRIBUTE_POSITION),
+        },
+    };
+
+    let indices = match mesh.indices().unwrap() {
+        Indices::U16(_) => {
+            panic!("expected u32 indices");
+        }
+        Indices::U32(indices) => indices
+            .chunks(3)
+            .map(|chunk| [chunk[0], chunk[1], chunk[2]])
+            .collect(),
+    };
+    (vertices, indices)
 }
