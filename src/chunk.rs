@@ -153,8 +153,8 @@ fn create_chunk_mesh(chunk_position: IVec2XZ, game_texture: GameTextureAtlas) ->
     // Stop the timer
     let elapsed = start.elapsed();
     info!(
-        "Chunk generation @ {:?} took: {:?}",
-        chunk_position, elapsed
+        "Chunk generation @ x: {} y: {} took: {:?}",
+        chunk_position.x, chunk_position.z, elapsed
     );
 
     chunk_mesh
@@ -388,7 +388,9 @@ pub fn handle_mesh_tasks(
                     mesh: chunk_mesh_handle,
                     material: materials.add(StandardMaterial {
                         base_color_texture: Some(texture.clone()),
-                        ..Default::default()
+                        metallic: 0.0,
+                        reflectance: 0.2,
+                        ..default()
                     }),
                     ..Default::default()
                 })
@@ -406,7 +408,24 @@ fn is_block_2d(pos: IVec3, perlin: &Perlin) -> BlockType {
     // TODO: Implement more 2d noise functions for more varied terrain.
 
     // 2d perlin noise
-    let noise_value = perlin.get([pos.x as f64 * WORLD_SCALE, pos.z as f64 * WORLD_SCALE]);
+    // let noise_value = perlin.get([pos.x as f64 * SURFACE_SCALE, pos.z as f64 * SURFACE_SCALE]);
+    // to make the terrain even more interesting, we can add more octaves of noise
+    let noise_values = vec![
+        perlin.get([
+            pos.x as f64 * 2. * SURFACE_SCALE,
+            pos.z as f64 * 2. * SURFACE_SCALE,
+        ]),
+        perlin.get([
+            pos.x as f64 * 4. * SURFACE_SCALE,
+            pos.z as f64 * 4. * SURFACE_SCALE,
+        ]),
+        perlin.get([
+            pos.x as f64 * 6. * SURFACE_SCALE,
+            pos.z as f64 * 6. * SURFACE_SCALE,
+        ]),
+    ];
+    // add all the noise values together
+    let noise_value = noise_values.iter().fold(0., |acc, &x| acc + x);
 
     // Change values (-1, 1) -> (TERRAIN_HEIGHT, MAX_HEIGHT)
     let cieling_margin = 80;
@@ -434,9 +453,9 @@ fn is_block_3d(pos: IVec3, perlin: &Perlin) -> BlockType {
 
     // 3d perlin noise
     let noise_value = perlin.get([
-        pos.x as f64 * WORLD_SCALE,
-        pos.y as f64 * WORLD_SCALE,
-        pos.z as f64 * WORLD_SCALE,
+        pos.x as f64 * CAVE_SCALE,
+        pos.y as f64 * CAVE_SCALE,
+        pos.z as f64 * CAVE_SCALE,
     ]);
 
     // If the noise value is above the threshold, create a cube at that position.

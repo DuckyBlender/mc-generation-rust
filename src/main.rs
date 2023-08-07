@@ -88,6 +88,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Camera3dBundle {
             transform: Transform::from_translation(Vec3::new(0.0, 200.0, 0.0))
                 .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
+            projection: Projection::Perspective(PerspectiveProjection {
+                fov: FOV.to_radians(),
+                ..default()
+            }),
             ..default()
         },
         FogSettings {
@@ -118,7 +122,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
         transform: Transform::from_xyz(0.0, 0.0, 0.0)
-            .looking_at(Vec3::new(-0.15, -0.05, 0.25), Vec3::Y),
+            .looking_at(Vec3::new(-0.15, -0.05, 0.25), Vec3::new(0.3, 1.0, 0.0)),
         cascade_shadow_config,
         ..default()
     });

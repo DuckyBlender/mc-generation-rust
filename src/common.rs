@@ -1,12 +1,14 @@
 use bevy::{prelude::*, tasks::Task};
 
-pub const RENDER_DISTANCE: i32 = 12;
+pub const RENDER_DISTANCE: i32 = 20;
 pub const SEED: u32 = 2137;
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_HEIGHT: usize = 256;
-pub const WORLD_SCALE: f64 = 0.06;
+pub const SURFACE_SCALE: f64 = 0.008;
+pub const CAVE_SCALE: f64 = 0.06;
 pub const NOISE_THRESHOLD: f64 = 0.3;
 pub const TERRAIN_HEIGHT: i32 = 160;
+pub const FOV: f32 = 80.0;
 
 // === COMPONENTS ===
 
