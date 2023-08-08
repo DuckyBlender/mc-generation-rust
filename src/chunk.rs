@@ -385,7 +385,10 @@ pub fn handle_mesh_tasks(
             // Get the vertices and indices from the mesh. This is needed to create the collider.
             let (vertices, indices) = get_verts_indices(meshes.get(&chunk_mesh_handle).unwrap());
 
-            // check if
+            // check if ComputeMeshTask is still attached to entity
+            if !task.0.is_finished() {
+                continue;
+            }
 
             commands
                 .entity(entity)
