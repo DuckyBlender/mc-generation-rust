@@ -355,8 +355,7 @@ pub fn chunk_system(
         // Find the entity corresponding to the chunk.
         for (entity, chunk_mesh) in chunk_query.iter_mut() {
             if chunk_mesh.position == chunk_position {
-                // Check if the chunk is still being generated.
-                // TODO
+                // TODO: Make this async
 
                 // Despawn the entity.
                 commands.entity(entity).despawn_recursive();
@@ -397,7 +396,7 @@ pub fn handle_mesh_tasks(
                     material: materials.add(StandardMaterial {
                         base_color_texture: Some(texture.clone()),
                         metallic: 0.0,
-                        reflectance: 0.2,
+                        reflectance: 0.0,
                         ..default()
                     }),
                     ..Default::default()
@@ -413,7 +412,6 @@ pub fn handle_mesh_tasks(
 fn is_block_2d(pos: IVec3, perlin: &Perlin) -> BlockType {
     // Sample the noise function at the scaled position.
     // The perlin noise needs a float value, so we need to cast the scaled position to a float.
-    // TODO: Implement more 2d noise functions for more varied terrain.
 
     // 2d perlin noise
     // let noise_value = perlin.get([pos.x as f64 * SURFACE_SCALE, pos.z as f64 * SURFACE_SCALE]);

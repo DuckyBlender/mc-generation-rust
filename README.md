@@ -11,13 +11,11 @@ Once you have Rust installed, you can run the example with the following command
 ```bash
 cargo run --release
 ```
-
+# WARNING! RIGHT NOW THE GAME RANDOMLY CRASHES. NO IDEA WHY. I'LL FIX IT SOON. (I HOPE) (I'M NOT SURE IF IT'S A BEVY BUG OR MY CODE) (I THINK IT'S MY CODE) 
 ## Controls
 
 - `WASD` - Move
-- `Control` - Move slightly faster
-- `Space` - Move up
-- `Shift` - Move down
+- I have no idea what are the other controls, I'll add them here when i create the player controller
 
 ## Screenshots (WIP)
 
