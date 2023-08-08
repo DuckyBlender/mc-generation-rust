@@ -59,6 +59,7 @@ fn main() -> Result<()> {
         // == Resources ==
         .insert_resource(ChunksLoaded { chunks: vec![] })
         .insert_resource(Generating(true))
+        .insert_resource(ChunkBorderToggled(true))
         // == Systems ==
         .add_systems(Startup, (setup, setup_hud))
         .add_systems(

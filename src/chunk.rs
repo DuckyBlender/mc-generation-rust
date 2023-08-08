@@ -355,6 +355,9 @@ pub fn chunk_system(
         // Find the entity corresponding to the chunk.
         for (entity, chunk_mesh) in chunk_query.iter_mut() {
             if chunk_mesh.position == chunk_position {
+                // Check if the chunk is still being generated.
+                // TODO
+
                 // Despawn the entity.
                 commands.entity(entity).despawn_recursive();
 
@@ -381,6 +384,8 @@ pub fn handle_mesh_tasks(
 
             // Get the vertices and indices from the mesh. This is needed to create the collider.
             let (vertices, indices) = get_verts_indices(meshes.get(&chunk_mesh_handle).unwrap());
+
+            // check if
 
             commands
                 .entity(entity)

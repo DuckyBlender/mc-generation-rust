@@ -34,6 +34,9 @@ pub struct ChunksLoaded {
 }
 
 #[derive(Resource)]
+pub struct ChunkBorderToggled(pub bool);
+
+#[derive(Resource)]
 pub struct Generating(pub bool);
 
 #[derive(Resource, Clone)]
@@ -41,7 +44,7 @@ pub struct GameTextureAtlas(pub TextureAtlas);
 
 // === ENUMS ===
 
-#[derive(PartialEq, Debug, Copy, Clone, Default)]
+#[derive(PartialEq, Copy, Clone, Default)]
 pub enum BlockType {
     Bedrock,
     Stone,

@@ -158,7 +158,7 @@ pub fn setup_hud(mut commands: Commands) {
 
     // Text to display controls
     commands.spawn((TextBundle::from_section(
-        "P - Pause Chunk generation\nR - Reset Chunks".to_string(),
+        "P - Pause Chunk generation\nR - Reset Chunks\nG - Toggle Chunks Borders".to_string(),
         TextStyle {
             font_size: 20.0,
             ..default()
