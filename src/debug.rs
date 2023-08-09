@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::window::PresentMode;
 use bevy_prototype_debug_lines::DebugLines;
 
 use crate::common::*;
@@ -10,6 +11,7 @@ pub fn debug_keyboard(
     chunk_query: Query<Entity, With<ChunkMesh>>,
     mut chunks_loaded: ResMut<ChunksLoaded>,
     mut chunk_border_toggled: ResMut<ChunkBorderToggled>,
+    mut windows: Query<&mut Window>,
 ) {
     if keyboard_input.just_pressed(KeyCode::P) {
         // Toggle the generating resource.
@@ -26,11 +28,20 @@ pub fn debug_keyboard(
         // Toggle the chunk border.
         chunk_border_toggled.0 = !chunk_border_toggled.0;
     }
+    // Toggle VSync
+    if keyboard_input.just_pressed(KeyCode::V) {
+        let mut window = windows.single_mut();
+
+        window.present_mode = if matches!(window.present_mode, PresentMode::AutoVsync) {
+            PresentMode::AutoNoVsync
+        } else {
+            PresentMode::AutoVsync
+        };
+        info!("Window Mode: {:?}", window.present_mode);
+    }
 }
 
 pub fn chunk_border(
-    // chunk_position: IVec3,
-    // chunk_borders: Query<&ChunkBorder>,
     mut lines: ResMut<DebugLines>,
     camera: Query<&Transform, With<Camera>>,
     chunk_border_toggled: Res<ChunkBorderToggled>,
@@ -57,77 +68,28 @@ pub fn chunk_border(
     let y2 = CHUNK_HEIGHT as i32;
     let z2 = z1 + CHUNK_SIZE as i32;
 
-    // Draw the lines.
-    lines.line_colored(
-        [x1 as f32, y1 as f32, z1 as f32].into(),
-        [x2 as f32, y1 as f32, z1 as f32].into(),
-        1.0,
-        Color::rgb(1.0, 0.0, 0.0),
-    );
-    lines.line_colored(
-        [x1 as f32, y1 as f32, z1 as f32].into(),
-        [x1 as f32, y2 as f32, z1 as f32].into(),
-        1.0,
-        Color::rgb(1.0, 0.0, 0.0),
-    );
-    lines.line_colored(
-        [x1 as f32, y1 as f32, z1 as f32].into(),
-        [x1 as f32, y1 as f32, z2 as f32].into(),
-        1.0,
-        Color::rgb(1.0, 0.0, 0.0),
-    );
-    lines.line_colored(
-        [x2 as f32, y1 as f32, z1 as f32].into(),
-        [x2 as f32, y2 as f32, z1 as f32].into(),
-        1.0,
-        Color::rgb(1.0, 0.0, 0.0),
-    );
-    lines.line_colored(
-        [x2 as f32, y1 as f32, z1 as f32].into(),
-        [x2 as f32, y1 as f32, z2 as f32].into(),
-        1.0,
-        Color::rgb(1.0, 0.0, 0.0),
-    );
-    lines.line_colored(
-        [x1 as f32, y2 as f32, z1 as f32].into(),
-        [x2 as f32, y2 as f32, z1 as f32].into(),
-        1.0,
-        Color::rgb(1.0, 0.0, 0.0),
-    );
-    lines.line_colored(
-        [x1 as f32, y2 as f32, z1 as f32].into(),
-        [x1 as f32, y2 as f32, z2 as f32].into(),
-        1.0,
-        Color::rgb(1.0, 0.0, 0.0),
-    );
-    lines.line_colored(
-        [x1 as f32, y1 as f32, z2 as f32].into(),
-        [x2 as f32, y1 as f32, z2 as f32].into(),
-        1.0,
-        Color::rgb(1.0, 0.0, 0.0),
-    );
-    lines.line_colored(
-        [x1 as f32, y1 as f32, z2 as f32].into(),
-        [x1 as f32, y2 as f32, z2 as f32].into(),
-        1.0,
-        Color::rgb(1.0, 0.0, 0.0),
-    );
-    lines.line_colored(
-        [x2 as f32, y1 as f32, z2 as f32].into(),
-        [x2 as f32, y2 as f32, z2 as f32].into(),
-        1.0,
-        Color::rgb(1.0, 0.0, 0.0),
-    );
-    lines.line_colored(
-        [x1 as f32, y2 as f32, z2 as f32].into(),
-        [x2 as f32, y2 as f32, z2 as f32].into(),
-        1.0,
-        Color::rgb(1.0, 0.0, 0.0),
-    );
-    lines.line_colored(
-        [x2 as f32, y2 as f32, z1 as f32].into(),
-        [x2 as f32, y2 as f32, z2 as f32].into(),
-        1.0,
-        Color::rgb(1.0, 0.0, 0.0),
-    );
+    let duration = 0.0;
+    let color = Color::rgb(1.0, 0.0, 0.0);
+
+    let corners = [
+        [x1, y1, z1],
+        [x2, y1, z1],
+        [x1, y2, z1],
+        [x1, y1, z2],
+        [x2, y2, z1],
+        [x2, y1, z2],
+        [x1, y2, z2],
+        [x2, y2, z2],
+    ];
+
+    // Convert corners to Vec3
+    let corners: Vec<Vec3> = corners
+        .iter()
+        .map(|corner| Vec3::new(corner[0] as f32, corner[1] as f32, corner[2] as f32))
+        .collect();
+
+    for i in 0..corners.len() {
+        let j = (i + 1) % corners.len();
+        lines.line_colored(corners[i], corners[j], duration, color);
+    }
 }

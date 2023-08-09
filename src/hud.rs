@@ -3,6 +3,7 @@ use bevy::{
         DiagnosticsStore, FrameTimeDiagnosticsPlugin, SystemInformationDiagnosticsPlugin,
     },
     prelude::*,
+    window::PresentMode,
 };
 
 use crate::common::*;
@@ -19,6 +20,7 @@ pub fn update_text(
     mut query: Query<&mut Text, With<TextChanges>>,
     camera_query: Query<&Transform, With<Camera>>,
     chunk_query: Query<&ChunkMesh>,
+    windows: Query<&Window>,
 ) {
     // Update the FPS counter.
     let mut fps_text = query.single_mut();
@@ -75,9 +77,20 @@ pub fn update_text(
         "-Z"
     };
 
+    let window = windows.single();
+
+    let vsync = match window.present_mode {
+        PresentMode::AutoVsync => "Enabled",
+        PresentMode::Fifo => "Enabled",
+        PresentMode::AutoNoVsync => "Disabled",
+        PresentMode::Mailbox => "Triple buffered",
+        PresentMode::Immediate => "Immediate",
+    };
+
     fps_text.sections[0].value = format!(
-        "FPS: {:.2}, CPU: {:.2}%, RAM: {:.2}%\nChunks loaded: {}\n\nPosition: ({:.2}, {:.2}, {:.2}) Chunk: ({}, {})\nDirection: {}",
+        "FPS: {:.2} (VSync {})\nCPU: {:.2}%, RAM: {:.2}%\nChunks loaded: {}\n\nPosition: ({:.2}, {:.2}, {:.2}) Chunk: ({}, {})\nDirection: {}",
         fps,
+        vsync,
         cpu,
         ram,
         chunks_loaded,
@@ -158,7 +171,8 @@ pub fn setup_hud(mut commands: Commands) {
 
     // Text to display controls
     commands.spawn((TextBundle::from_section(
-        "P - Pause Chunk generation\nR - Reset Chunks\nG - Toggle Chunks Borders".to_string(),
+        "P - Pause Chunk generation\nR - Reset Chunks\nG - Toggle Chunks Borders\nV - Toggle VSync"
+            .to_string(),
         TextStyle {
             font_size: 20.0,
             ..default()
