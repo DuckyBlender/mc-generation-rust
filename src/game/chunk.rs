@@ -152,10 +152,10 @@ fn create_chunk_mesh(chunk_position: IVec2XZ, game_texture: GameTextureAtlas) ->
 
     // Stop the timer
     let elapsed = start.elapsed();
-    info!(
-        "Chunk generation @ x: {} y: {} took: {:?}",
-        chunk_position.x, chunk_position.z, elapsed
-    );
+    // info!(
+    //     "Chunk generation @ x: {} y: {} took: {:?}",
+    //     chunk_position.x, chunk_position.z, elapsed
+    // );
 
     chunk_mesh
 }
@@ -357,11 +357,12 @@ pub fn chunk_system(
             if chunk_mesh.position == chunk_position {
                 // TODO: Make this async
 
-                // Despawn the entity.
-                commands.entity(entity).despawn_recursive();
-
                 // Remove the chunk from the loaded chunks.
                 chunks_loaded.chunks.retain(|&x| x != chunk_position);
+
+                // Despawn the chunk.
+                commands.entity(entity).despawn(); // TODO: Fix the warning if the chunk has been despawned already by another thread.
+
                 break;
             }
         }
@@ -374,6 +375,7 @@ pub fn handle_mesh_tasks(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     game_atlas: Res<GameTextureAtlas>,
+    mut chunks_loaded: ResMut<ChunksLoaded>,
 ) {
     let texture = game_atlas.0.texture.clone_weak();
 
@@ -384,27 +386,43 @@ pub fn handle_mesh_tasks(
             // Get the vertices and indices from the mesh. This is needed to create the collider.
             let (vertices, indices) = get_verts_indices(meshes.get(&chunk_mesh_handle).unwrap());
 
-            // check if ComputeMeshTask is still attached to entity
-            if !task.0.is_finished() {
-                continue;
+            // Check if every vertice is contained in at least one chunk from the chunks that are loaded.
+            // The vertices should be scaled by the chunk size.
+
+            let chunk_position = IVec2XZ::new(
+                (vertices[0].x / CHUNK_SIZE as f32).floor() as i32,
+                (vertices[0].z / CHUNK_SIZE as f32).floor() as i32,
+            );
+
+            // Check if this chunk position is even loaded
+            if !chunks_loaded.chunks.contains(&chunk_position) {
+                // warn!("Prevented crash!");
+
+                // Despawn the entity.
+                commands.entity(entity).despawn_recursive();
+
+                // Remove the chunk from the loaded chunks.
+                chunks_loaded.chunks.retain(|&x| x != chunk_position);
+
+                break;
+            } else {
+                commands
+                    .entity(entity)
+                    .insert(PbrBundle {
+                        mesh: chunk_mesh_handle,
+                        material: materials.add(StandardMaterial {
+                            base_color_texture: Some(texture.clone()),
+                            metallic: 0.0,
+                            reflectance: 0.0,
+                            ..default()
+                        }),
+                        ..Default::default()
+                    })
+                    .insert(Collider::trimesh(vertices, indices));
+
+                // Task is complete, so remove task component from entity
+                commands.entity(entity).remove::<ComputeMeshTask>();
             }
-
-            commands
-                .entity(entity)
-                .insert(PbrBundle {
-                    mesh: chunk_mesh_handle,
-                    material: materials.add(StandardMaterial {
-                        base_color_texture: Some(texture.clone()),
-                        metallic: 0.0,
-                        reflectance: 0.0,
-                        ..default()
-                    }),
-                    ..Default::default()
-                })
-                .insert(Collider::trimesh(vertices, indices));
-
-            // Task is complete, so remove task component from entity
-            commands.entity(entity).remove::<ComputeMeshTask>();
         }
     }
 }

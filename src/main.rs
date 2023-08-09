@@ -87,14 +87,6 @@ fn setup(
         TextureAtlas::from_grid(texture_handle, Vec2::new(32.0, 32.0), 2, 3, None, None);
     commands.insert_resource(GameTextureAtlas(texture_atlas));
 
-    // Configure a properly scaled cascade shadow map for this scene (defaults are too large, mesh units are in km)
-    let cascade_shadow_config = CascadeShadowConfigBuilder {
-        first_cascade_far_bound: 0.3,
-        maximum_distance: 3.0,
-        ..default()
-    }
-    .build();
-
     // Sun
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
@@ -104,7 +96,7 @@ fn setup(
         },
         transform: Transform::from_xyz(0.0, 0.0, 0.0)
             .looking_at(Vec3::new(-0.15, -0.05, 0.25), Vec3::new(0.3, 1.0, 0.0)),
-        cascade_shadow_config,
+
         ..default()
     });
 

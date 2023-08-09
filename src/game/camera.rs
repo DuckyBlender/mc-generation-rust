@@ -1,6 +1,6 @@
 // A big part of this is thanks to the bevy_flycam crate
 
-use bevy::{input::mouse::MouseMotion, prelude::*, window::PrimaryWindow};
+use bevy::{input::mouse::MouseMotion, pbr::NotShadowCaster, prelude::*, window::PrimaryWindow};
 use bevy_atmosphere::prelude::AtmosphereCamera;
 use bevy_rapier3d::prelude::*;
 
@@ -30,21 +30,29 @@ pub fn spawn_player(mut commands: Commands) {
                 ..default()
             },
             AtmosphereCamera::default(),
+            NotShadowCaster,
             RigidBody::KinematicPositionBased,
         ))
-        .insert(KinematicCharacterController::default())
+        .insert(KinematicCharacterController {
+            offset: CharacterLength::Absolute(0.1),
+            up: Vec3::Y,
+            autostep: None,
+            ..default()
+        })
         .insert(Collider::cuboid(0.5, 1.0, 0.5))
         // .insert(AdditionalMassProperties::Mass(10.0))
         .insert(TransformBundle::from(Transform::from_xyz(0.0, 200.0, 0.0)))
-        .insert(Sleeping::disabled()) // Disable sleeping so that the player doesn't fall through the ground
-        .insert(Ccd::enabled()); // Continuous collision detection;
+        .insert(Sleeping::disabled()) // Disable sleeping so that physics are always enabled
+        .insert(Ccd::enabled()); // Continuous collision detection
 }
 
 // todo: make the query more readable
 pub fn move_player(
     mut controllers: Query<(&mut KinematicCharacterController, &Transform)>,
+    ground_touching: Query<&KinematicCharacterControllerOutput>,
     keys: Res<Input<KeyCode>>,
     primary_window: Query<&Window, With<PrimaryWindow>>,
+    time: Res<Time>,
 ) {
     if primary_window.get_single().is_err() {
         return;
@@ -62,24 +70,41 @@ pub fn move_player(
         .mul_vec3(Vec3::Z);
     let forward = Vec3::new(local_z.x, 0.0, local_z.z).normalize();
     let right = Vec3::new(local_z.z, 0.0, -local_z.x).normalize();
+    let mut sprinting = false;
 
     for key in keys.get_pressed() {
         match key {
-            KeyCode::W => new_translation += forward,
-            KeyCode::S => new_translation -= forward,
-            KeyCode::A => new_translation += right,
-            KeyCode::D => new_translation -= right,
+            KeyCode::W => new_translation -= forward,
+            KeyCode::S => new_translation += forward,
+            KeyCode::A => new_translation -= right,
+            KeyCode::D => new_translation += right,
+            KeyCode::ShiftLeft => sprinting = true,
             _ => (),
         }
     }
 
     // Normalize so that diagonal movement isn't faster
-    if new_translation.length() > 0.0 {
-        new_translation = new_translation.normalize();
+    new_translation = new_translation.normalize_or_zero();
+
+    // Sprinting
+    if sprinting {
+        new_translation *= 2.0;
     }
 
-    // Transform from global to local coordinates
-    new_translation = Quat::from_rotation_y(std::f32::consts::PI) * new_translation * 0.1; // 0.1 is the speed
+    // Scale by time
+    new_translation *= time.delta_seconds() * SPEED;
+
+    // Gravity is scaled by GRAVITY
+    new_translation.y -= time.delta_seconds() * GRAVITY;
+
+    // Jumping
+    if keys.just_pressed(KeyCode::Space) {
+        for output in ground_touching.iter() {
+            if output.grounded {
+                new_translation.y += JUMP_FORCE;
+            }
+        }
+    }
 
     for mut controller in controllers.iter_mut() {
         controller.0.translation = Some(new_translation);
