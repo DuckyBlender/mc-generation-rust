@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::window::PresentMode;
 use bevy_prototype_debug_lines::DebugLines;
 
-use crate::common::*;
+use super::common::*;
 
 pub fn debug_keyboard(
     keyboard_input: Res<Input<KeyCode>>,
@@ -82,14 +82,29 @@ pub fn chunk_border(
         [x2, y2, z2],
     ];
 
-    // Convert corners to Vec3
-    let corners: Vec<Vec3> = corners
-        .iter()
-        .map(|corner| Vec3::new(corner[0] as f32, corner[1] as f32, corner[2] as f32))
-        .collect();
+    // Get all of the lines to draw.
+    let lines_to_draw = [
+        [corners[0], corners[1]],
+        [corners[0], corners[2]],
+        [corners[0], corners[3]],
+        [corners[1], corners[4]],
+        [corners[1], corners[5]],
+        [corners[2], corners[4]],
+        [corners[2], corners[6]],
+        [corners[3], corners[5]],
+        [corners[3], corners[6]],
+        [corners[4], corners[7]],
+        [corners[5], corners[7]],
+        [corners[6], corners[7]],
+    ];
 
-    for i in 0..corners.len() {
-        let j = (i + 1) % corners.len();
-        lines.line_colored(corners[i], corners[j], duration, color);
+    // Draw all of the lines.
+    for line in lines_to_draw.iter() {
+        lines.line_colored(
+            Vec3::new(line[0][0] as f32, line[0][1] as f32, line[0][2] as f32),
+            Vec3::new(line[1][0] as f32, line[1][1] as f32, line[1][2] as f32),
+            duration,
+            color,
+        );
     }
 }

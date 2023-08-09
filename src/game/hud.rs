@@ -6,7 +6,7 @@ use bevy::{
     window::PresentMode,
 };
 
-use crate::common::*;
+use super::common::*;
 
 // For FPS counter
 #[derive(Component)]
