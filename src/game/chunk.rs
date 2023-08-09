@@ -12,7 +12,7 @@ use noise::{NoiseFn, Perlin};
 use std::collections::HashSet;
 use std::time::Instant;
 
-use crate::{common::*, BlockType, ChunksLoaded};
+use super::common::*;
 
 /// Creates a 16x256x16 chunk mesh using a combination of 3D and 2D Perlin noise.
 fn create_chunk_mesh(chunk_position: IVec2XZ, game_texture: GameTextureAtlas) -> Mesh {

@@ -1,6 +1,6 @@
-use bevy::{prelude::*, tasks::Task};
+use bevy::{ecs::event::ManualEventReader, input::mouse::MouseMotion, prelude::*, tasks::Task};
 
-pub const RENDER_DISTANCE: i32 = 20;
+pub const RENDER_DISTANCE: i32 = 4;
 pub const SEED: u32 = 2137;
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_HEIGHT: usize = 256;
@@ -31,6 +31,12 @@ pub struct UI;
 #[derive(Resource)]
 pub struct ChunksLoaded {
     pub chunks: Vec<IVec2XZ>,
+}
+
+/// Keeps track of mouse motion events, pitch, and yaw
+#[derive(Resource, Default)]
+pub struct InputState {
+    pub reader_motion: ManualEventReader<MouseMotion>,
 }
 
 #[derive(Resource)]
