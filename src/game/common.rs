@@ -1,6 +1,6 @@
 use bevy::{ecs::event::ManualEventReader, input::mouse::MouseMotion, prelude::*, tasks::Task};
 
-pub const RENDER_DISTANCE: i32 = 8;
+pub const RENDER_DISTANCE: i32 = 12;
 pub const SEED: u32 = 2137;
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_HEIGHT: usize = 256;
@@ -10,9 +10,9 @@ pub const NOISE_THRESHOLD: f64 = 0.3;
 pub const TERRAIN_HEIGHT: i32 = 160;
 pub const FOV: f32 = 80.0;
 
-pub const SPEED: f32 = 10.0;
-pub const GRAVITY: f32 = 9.81;
-pub const JUMP_FORCE: f32 = 2.5;
+// pub const SPEED: f32 = 10.0;
+// pub const GRAVITY: f32 = 9.81;
+// pub const JUMP_FORCE: f32 = 2.5;
 
 // === COMPONENTS ===
 

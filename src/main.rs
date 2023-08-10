@@ -1,18 +1,15 @@
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::diagnostic::SystemInformationDiagnosticsPlugin;
-use bevy::pbr::CascadeShadowConfigBuilder;
+use bevy::pbr::NotShadowCaster;
 use bevy::prelude::*;
 use bevy_atmosphere::prelude::*;
+use bevy_flycam::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_prototype_debug_lines::*;
 use bevy_rapier3d::prelude::*;
 use color_eyre::eyre::Result;
 
 mod game;
-use game::camera::cursor_grab_system;
-use game::camera::move_player;
-use game::camera::player_look;
-use game::camera::spawn_player;
 use game::chunk::chunk_system;
 use game::chunk::handle_mesh_tasks;
 use game::common::*;
@@ -48,6 +45,11 @@ fn main() -> Result<()> {
         .add_plugins(SystemInformationDiagnosticsPlugin)
         .add_plugins(DebugLinesPlugin::with_depth_test(true))
         .add_plugins(AtmospherePlugin)
+        .add_plugins(NoCameraPlayerPlugin)
+        .insert_resource(MovementSettings {
+            sensitivity: 0.00015, // default: 0.00012
+            speed: 30.0,          // default: 12.0
+        })
         // Rapier
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         // .add_plugins(RapierDebugRenderPlugin::default())
@@ -57,7 +59,7 @@ fn main() -> Result<()> {
         .insert_resource(ChunkBorderToggled(true))
         .init_resource::<InputState>()
         // == Systems ==
-        .add_systems(Startup, (setup, setup_hud, spawn_player))
+        .add_systems(Startup, (setup, setup_hud))
         .add_systems(
             Update,
             (
@@ -66,9 +68,6 @@ fn main() -> Result<()> {
                 update_text,
                 chunk_system,
                 handle_mesh_tasks,
-                cursor_grab_system,
-                move_player,
-                player_look,
             ),
         )
         .run();
@@ -104,6 +103,30 @@ fn setup(
     for mut grav in grav_scale.iter_mut() {
         grav.0 = 1.0;
     }
+
+    commands.spawn((
+        Camera3dBundle {
+            transform: Transform::from_translation(Vec3::new(0.0, 200.0, 0.0))
+                .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
+            projection: Projection::Perspective(PerspectiveProjection {
+                fov: FOV.to_radians(),
+                ..default()
+            }),
+            ..default()
+        },
+        FogSettings {
+            color: Color::rgba(0.05, 0.05, 0.05, 1.0),
+            falloff: FogFalloff::Linear {
+                start: RENDER_DISTANCE as f32 * CHUNK_SIZE as f32 * 0.8,
+                end: RENDER_DISTANCE as f32 * CHUNK_SIZE as f32 * 0.95,
+            },
+            ..default()
+        },
+        AtmosphereCamera::default(),
+        NotShadowCaster,
+        // RigidBody::KinematicPositionBased,
+        FlyCam,
+    ));
 }
 
 // this is in tests.rs

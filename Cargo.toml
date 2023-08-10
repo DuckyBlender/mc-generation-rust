@@ -9,6 +9,7 @@ edition = "2021"
 bevy = "0.11"
 bevy-inspector-egui = "0.19"
 bevy_prototype_debug_lines = { version = "0.11", features = ["3d"] }
+bevy_flycam = { git = "https://github.com/sburris0/bevy_flycam", branch = "bevy_0.11" }
 noise = "0.8.2"
 bevy_atmosphere = "0.7.0"
 bevy_rapier3d = { version = "0.22", features = [

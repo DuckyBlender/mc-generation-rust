@@ -152,15 +152,16 @@ fn create_chunk_mesh(chunk_position: IVec2XZ, game_texture: GameTextureAtlas) ->
 
     // Stop the timer
     let elapsed = start.elapsed();
-    // info!(
-    //     "Chunk generation @ x: {} y: {} took: {:?}",
-    //     chunk_position.x, chunk_position.z, elapsed
-    // );
+    info!(
+        "Chunk generation @ x: {} y: {} took: {:?}",
+        chunk_position.x, chunk_position.z, elapsed
+    );
 
     chunk_mesh
 }
 
 /// Creates a face on a block.
+#[allow(clippy::too_many_arguments)] // too lazy to fix
 fn create_face(
     vertices: &mut Vec<[f32; 3]>,
     indices: &mut Vec<u32>,
@@ -510,10 +511,10 @@ fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
 ///
 /// This function is used to make caves and land coexist. It's a smooth linear line from 0 to 256.
 /// TODO: Implement this into is_block in a way that makes sense.
-fn noise_interpolation(y: i32) -> i32 {
-    // Linear interpolation
-    (y as f32 * 256.0 / CHUNK_HEIGHT as f32) as i32
-}
+// fn noise_interpolation(y: i32) -> i32 {
+//     // Linear interpolation
+//     (y as f32 * 256.0 / CHUNK_HEIGHT as f32) as i32
+// }
 
 /// Remaps a value from one range to another.
 fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {
