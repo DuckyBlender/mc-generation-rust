@@ -252,7 +252,7 @@ fn create_face(
                 textures[4]
             }
         }
-        BlockType::Log => textures[5],
+        // BlockType::Log => textures[5],
         BlockType::Air => textures[0], // todo: make this not cringe
     };
 
@@ -348,7 +348,7 @@ pub fn chunk_system(
             },
         ));
 
-        chunks_loaded.chunks.push(chunk_position);
+        chunks_loaded.chunks.insert(chunk_position);
     }
 
     // Unload the chunks.

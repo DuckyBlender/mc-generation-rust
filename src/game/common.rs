@@ -1,4 +1,5 @@
 use bevy::{ecs::event::ManualEventReader, input::mouse::MouseMotion, prelude::*, tasks::Task};
+use std::collections::HashSet;
 
 pub const RENDER_DISTANCE: i32 = 12;
 pub const SEED: u32 = 2137;
@@ -34,7 +35,7 @@ pub struct UI;
 
 #[derive(Resource)]
 pub struct ChunksLoaded {
-    pub chunks: Vec<IVec2XZ>,
+    pub chunks: HashSet<IVec2XZ>,
 }
 
 /// Keeps track of mouse motion events, pitch, and yaw
@@ -60,7 +61,7 @@ pub enum BlockType {
     Stone,
     Dirt,
     Grass,
-    Log,
+    // Log,
     #[default]
     Air,
 }

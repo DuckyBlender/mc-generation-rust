@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::diagnostic::SystemInformationDiagnosticsPlugin;
 use bevy::pbr::NotShadowCaster;
@@ -48,13 +50,15 @@ fn main() -> Result<()> {
         .add_plugins(NoCameraPlayerPlugin)
         .insert_resource(MovementSettings {
             sensitivity: 0.00015, // default: 0.00012
-            speed: 30.0,          // default: 12.0
+            speed: 150.0,         // default: 12.0
         })
         // Rapier
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         // .add_plugins(RapierDebugRenderPlugin::default())
         // == Resources ==
-        .insert_resource(ChunksLoaded { chunks: vec![] })
+        .insert_resource(ChunksLoaded {
+            chunks: HashSet::new(),
+        })
         .insert_resource(Generating(true))
         .insert_resource(ChunkBorderToggled(true))
         .init_resource::<InputState>()
