@@ -89,15 +89,13 @@ fn create_chunk_mesh(chunk_position: IVec2XZ, game_texture: GameTextureAtlas) ->
                         || neighbor_z >= CHUNK_SIZE as i32
                     {
                         // If the neighbor block is outside the chunk, we need to calculate if there is block in other chunk.
-                        let neighbor_block_type = is_block(
-                            IVec3::new(
-                                x as i32 + (chunk_position.x * CHUNK_SIZE as i32) + x_offset,
-                                y as i32 + y_offset,
-                                z as i32 + (chunk_position.z * CHUNK_SIZE as i32) + z_offset,
-                            ),
-                            &perlin,
+                        let neighbor_block_pos = IVec3::new(
+                            x as i32 + (chunk_position.x * CHUNK_SIZE as i32) + x_offset,
+                            y as i32 + y_offset,
+                            z as i32 + (chunk_position.z * CHUNK_SIZE as i32) + z_offset,
                         );
-                        if neighbor_block_type == BlockType::Air {
+                        let neighbor_block_type = is_block(neighbor_block_pos, &perlin);
+                        if neighbor_block_type == BlockType::Air || neighbor_block_pos.y < 0 {
                             // Create the face.
                             create_face(
                                 &mut vertices,
@@ -387,6 +385,14 @@ pub fn handle_mesh_tasks(
             // Get the vertices and indices from the mesh. This is needed to create the collider.
             let (vertices, indices) = get_verts_indices(meshes.get(&chunk_mesh_handle).unwrap());
 
+            // Check if there are vertices in the mesh.
+            if vertices.is_empty() {
+                // Despawn the entity.
+                commands.entity(entity).despawn_recursive();
+
+                break;
+            }
+
             // Check if every vertice is contained in at least one chunk from the chunks that are loaded.
             // The vertices should be scaled by the chunk size.
 
@@ -413,8 +419,8 @@ pub fn handle_mesh_tasks(
                         mesh: chunk_mesh_handle,
                         material: materials.add(StandardMaterial {
                             base_color_texture: Some(texture.clone()),
-                            metallic: 0.0,
-                            reflectance: 0.0,
+                            metallic: 1.0,
+                            reflectance: 1.0,
                             ..default()
                         }),
                         ..Default::default()
@@ -435,6 +441,7 @@ fn is_block_2d(pos: IVec3, perlin: &Perlin) -> BlockType {
     // 2d perlin noise
     // let noise_value = perlin.get([pos.x as f64 * SURFACE_SCALE, pos.z as f64 * SURFACE_SCALE]);
     // to make the terrain even more interesting, we can add more octaves of noise
+
     let noise_values = vec![
         perlin.get([
             pos.x as f64 * 2. * SURFACE_SCALE,
@@ -492,18 +499,19 @@ fn is_block_3d(pos: IVec3, perlin: &Perlin) -> BlockType {
 }
 
 fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
-    // If the block is at y0, create a bedrock block.
+    if pos.x > 500000 || pos.z > 500000 {
+        // limit the world size because it will start breaking at extreme distances
+        return BlockType::Air;
+    }
+
     if pos.y == 0 {
         return BlockType::Bedrock;
     }
 
-    let two_noise_value = is_block_2d(pos, perlin);
-    let three_noise_value = is_block_3d(pos, perlin);
-
     if pos.y > TERRAIN_HEIGHT {
-        two_noise_value
+        is_block_2d(pos, perlin)
     } else {
-        three_noise_value
+        is_block_3d(pos, perlin)
     }
 }
 

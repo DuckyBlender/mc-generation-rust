@@ -90,7 +90,7 @@ fn setup(
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
             color: Color::rgb(0.98, 0.95, 0.82),
-            shadows_enabled: true,
+            shadows_enabled: false,
             ..default()
         },
         transform: Transform::from_xyz(0.0, 0.0, 0.0)
