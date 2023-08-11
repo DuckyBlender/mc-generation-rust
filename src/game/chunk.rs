@@ -99,7 +99,10 @@ fn create_chunk_mesh(chunk_position: IVec2XZ, game_texture: GameTextureAtlas) ->
                             z as i32 + (chunk_position.z * CHUNK_SIZE as i32) + z_offset,
                         );
                         let neighbor_block_type = is_block(neighbor_block_pos, &perlin);
-                        if neighbor_block_type == BlockType::Air || neighbor_block_pos.y < 0 {
+                        if neighbor_block_type == BlockType::Air
+                            || neighbor_block_pos.y < 0
+                            || neighbor_block_pos.y >= CHUNK_HEIGHT as i32
+                        {
                             // Create the face.
                             create_face(
                                 &mut vertices,
@@ -365,7 +368,7 @@ pub fn chunk_system(
             },
         ));
 
-        chunks_loaded.chunks.push(chunk_position);
+        chunks_loaded.chunks.insert(chunk_position);
     }
 
     // Unload the chunks.
