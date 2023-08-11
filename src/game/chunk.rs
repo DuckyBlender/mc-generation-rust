@@ -32,7 +32,7 @@ fn create_chunk_mesh(chunk_position: IVec2XZ, game_texture: GameTextureAtlas) ->
     let mut chunk_blocks: [[[BlockType; CHUNK_SIZE]; CHUNK_HEIGHT]; CHUNK_SIZE] =
         [[[BlockType::Air; CHUNK_SIZE]; CHUNK_HEIGHT]; CHUNK_SIZE];
 
-    // Create a 3D Perlin noise function with a random seed.
+    // Create a 3D Perlin noise function with a random seed for the cave and surface generation
     let perlin = Perlin::new(SEED);
 
     // Loop over each block position in the chunk.
@@ -45,7 +45,6 @@ fn create_chunk_mesh(chunk_position: IVec2XZ, game_texture: GameTextureAtlas) ->
                 let scaled_x = x as i32 + (chunk_position.x * CHUNK_SIZE as i32);
                 let scaled_y = y as i32;
                 let scaled_z = z as i32 + (chunk_position.z * CHUNK_SIZE as i32);
-                // info!("Scaled position: {}, {}, {}", scaled_x, scaled_y, scaled_z);
 
                 // Sample the noise function at the scaled position.
                 // The perlin noise needs a float value, so we need to cast the scaled position to a float.
@@ -68,8 +67,7 @@ fn create_chunk_mesh(chunk_position: IVec2XZ, game_texture: GameTextureAtlas) ->
                     continue;
                 }
 
-                if block_type == BlockType::Water {
-                }
+                if block_type == BlockType::Water {}
 
                 // Check the blocks around the current block to see if we need to create faces.
                 for &(x_offset, y_offset, z_offset, face) in &[
@@ -100,8 +98,12 @@ fn create_chunk_mesh(chunk_position: IVec2XZ, game_texture: GameTextureAtlas) ->
                         );
                         let neighbor_block_type = is_block(neighbor_block_pos, &perlin);
                         if neighbor_block_type == BlockType::Air
+                            || (block_type != BlockType::Water
+                                && neighbor_block_type == BlockType::Water)
+                            || (block_type != BlockType::Lava
+                                && neighbor_block_type == BlockType::Lava)
                             || neighbor_block_pos.y < 0
-                            || neighbor_block_pos.y >= CHUNK_HEIGHT as i32
+                            || neighbor_block_pos.y > CHUNK_HEIGHT as i32
                         {
                             // Create the face.
                             create_face(
@@ -122,7 +124,12 @@ fn create_chunk_mesh(chunk_position: IVec2XZ, game_texture: GameTextureAtlas) ->
                         let neighbor_block_type = chunk_blocks[neighbor_x as usize]
                             [neighbor_y as usize][neighbor_z as usize];
                         // If the neighbor block is Air, we need to create a face.
-                        if neighbor_block_type == BlockType::Air {
+                        if neighbor_block_type == BlockType::Air
+                            || (block_type != BlockType::Water
+                                && neighbor_block_type == BlockType::Water)
+                            || (block_type != BlockType::Lava
+                                && neighbor_block_type == BlockType::Lava)
+                        {
                             // Create the face.
                             create_face(
                                 &mut vertices,
@@ -186,8 +193,8 @@ fn create_face(
         position[2] + chunk_position.z as f32 * CHUNK_SIZE as f32,
     ];
 
-    // The index of the first vertex of this face.
-    let first_vertex = vertices.len() as u32;
+    // Get the len of the verticies
+    let verticies_len = vertices.len() as u32;
 
     // The normal of the face.
     let normal = match direction {
@@ -202,12 +209,24 @@ fn create_face(
     // The vertices of the face.
     // Bevy has backface culling enabled by default. This means that the vertices need to be in clockwise order. If a face is not showing up, this is probably the reason. (this took me so long)
     let face_vertices = match direction {
-        BlockFace::Top => [
-            [position[0], position[1] + 1.0, position[2]],
-            [position[0], position[1] + 1.0, position[2] + 1.0],
-            [position[0] + 1.0, position[1] + 1.0, position[2] + 1.0],
-            [position[0] + 1.0, position[1] + 1.0, position[2]],
-        ],
+        BlockFace::Top => {
+            // If this is water or lava and the face is the top, the top vert should be offset down by 0.1
+            if BlockType::Water == block || BlockType::Lava == block {
+                [
+                    [position[0], position[1] + 0.9, position[2]],
+                    [position[0], position[1] + 0.9, position[2] + 1.0],
+                    [position[0] + 1.0, position[1] + 0.9, position[2] + 1.0],
+                    [position[0] + 1.0, position[1] + 0.9, position[2]],
+                ]
+            } else {
+                [
+                    [position[0], position[1] + 1.0, position[2]],
+                    [position[0], position[1] + 1.0, position[2] + 1.0],
+                    [position[0] + 1.0, position[1] + 1.0, position[2] + 1.0],
+                    [position[0] + 1.0, position[1] + 1.0, position[2]],
+                ]
+            }
+        }
         BlockFace::Bottom => [
             [position[0], position[1], position[2] + 1.0],
             [position[0], position[1], position[2]],
@@ -260,7 +279,7 @@ fn create_face(
         }
         BlockType::Log => textures[5],
         BlockType::Lava => textures[6],
-        // BlockType::Lava => { 
+        // BlockType::Lava => {
         //     if direction == BlockFace::Top {
         //         textures[6]
         //     } else {
@@ -268,10 +287,10 @@ fn create_face(
         //     }
         //  }
         BlockType::Water => textures[7],
-        BlockType::Diamond_ore => textures[11],
-        BlockType::Gold_ore => textures[10],
-        BlockType::Iron_ore => textures[9],
-        BlockType::Coal_ore => textures[8],
+        BlockType::DiamondOre => textures[11],
+        BlockType::GoldOre => textures[10],
+        BlockType::IronOre => textures[9],
+        BlockType::CoalOre => textures[8],
         BlockType::Sand => textures[12],
         BlockType::Air => textures[0], // todo: make this not cringe
     };
@@ -288,12 +307,12 @@ fn create_face(
 
     // Add the indices to the vector. This is clockwise order.
     indices.extend_from_slice(&[
-        first_vertex,
-        first_vertex + 1,
-        first_vertex + 2,
-        first_vertex,
-        first_vertex + 2,
-        first_vertex + 3,
+        verticies_len,
+        verticies_len + 1,
+        verticies_len + 2,
+        verticies_len,
+        verticies_len + 2,
+        verticies_len + 3,
     ]);
 }
 
@@ -442,8 +461,8 @@ pub fn handle_mesh_tasks(
                         mesh: chunk_mesh_handle,
                         material: materials.add(StandardMaterial {
                             base_color_texture: Some(texture.clone()),
-                            metallic: 0., //1.
-                            reflectance: 0., //1.
+                            metallic: 1.,
+                            reflectance: 1.,
                             ..default()
                         }),
                         ..Default::default()
@@ -457,7 +476,7 @@ pub fn handle_mesh_tasks(
     }
 }
 
-fn is_block_2d(pos: IVec3, perlin: &Perlin) -> BlockType {
+fn surface_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
     // Sample the noise function at the scaled position.
     // The perlin noise needs a float value, so we need to cast the scaled position to a float.
 
@@ -484,73 +503,66 @@ fn is_block_2d(pos: IVec3, perlin: &Perlin) -> BlockType {
     // let noise_value32 = noise_value as f32;
 
     // Change values (-1, 1) -> (TERRAIN_HEIGHT, MAX_HEIGHT)
-    let cieling_margin = 40; //80 (40)
+    let cieling_margin = 40; // 40 blocks from height limit
     let max_height = CHUNK_HEIGHT - cieling_margin;
     let height = remap(
         noise_value as f32,
         -1., //-1.
         12., //1. (12.)
-        TERRAIN_HEIGHT as f32,
+        BLEND_HEIGHT as f32,
         max_height as f32,
     );
-
-    let ore_scale = 0.1;
-    let noise_ore_generation = perlin.get([
-        pos.x as f64 * ore_scale,
-        pos.y as f64 * ore_scale,
-        pos.z as f64 * ore_scale,
-    ]);
 
     // calculate block type given block position and height
     match pos.y {
         y if y == 0 => BlockType::Bedrock,
-        y if y + 6 < height as i32 && noise_ore_generation < 0.08 && noise_ore_generation > 0.02 => BlockType::Coal_ore, 
         y if y + 3 < height as i32 => BlockType::Stone,
         y if y < height as i32 && !(y > 64 && y < 72) => BlockType::Dirt,
         y if y == height as i32 && !(y > 64 && y < 72) => BlockType::Grass,
-        y if y <= height as i32 && (y > 64 && y < 72) => BlockType::Sand, 
+        y if y <= height as i32 && (y > 64 && y < 72) => BlockType::Sand,
         y if y > 64 && y < 70 => BlockType::Water,
         _ => BlockType::Air,
     }
 }
 
-fn is_block_3d(pos: IVec3, perlin: &Perlin) -> BlockType {
+fn cave_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
     // Sample the noise function at the scaled position.
     // The perlin noise needs a float value, so we need to cast the scaled position to a float.
 
-    let ore_scale = 0.1;
-    let noise_ore_generation = perlin.get([
-        pos.x as f64 * ore_scale,
-        pos.y as f64 * ore_scale,
-        pos.z as f64 * ore_scale,
-    ]);
-
     // 3d perlin noise
-    let noise_value = perlin.get([
+    let cave_noise_value = perlin.get([
         pos.x as f64 * CAVE_SCALE,
         pos.y as f64 * CAVE_SCALE,
         pos.z as f64 * CAVE_SCALE,
     ]);
-    // let noise_value32 = noise_value as f32;
 
-    // If the noise value is above the threshold, create a cube at that position.
-    if noise_value < NOISE_THRESHOLD {
-        if noise_ore_generation < 0.08 && noise_ore_generation > 0.07 && pos.y <= 16 {
-            BlockType::Diamond_ore
-        } else if noise_ore_generation < 0.08 && noise_ore_generation > 0.055 && pos.y <= 24 && pos.y >= 8 {
-            BlockType::Gold_ore
-        } else if noise_ore_generation < 0.08 && noise_ore_generation > 0.055 && pos.y <= 48 && pos.y >= 10 {
-            BlockType::Iron_ore
-        } else if noise_ore_generation < 0.08 && noise_ore_generation > 0.02 && pos.y <= 64 && pos.y >= 24 { //pos.y <= 64
-            BlockType::Coal_ore
-        } else {
-            BlockType::Stone
-        }
-    } else if pos.y <= 11 {
-        // set lava
-        BlockType::Lava
+    // TODO: LAVA ON AIR BLOCKS BELOW Y 11
+    if cave_noise_value < CAVE_THRESHOLD {
+        cave_block(pos)
     } else {
         BlockType::Air
+    }
+}
+
+fn cave_block(pos: IVec3) -> BlockType {
+    let ore_perlin = Perlin::new(69420);
+    let noise_ore_generation = ore_perlin.get([
+        pos.x as f64 * ORE_SCALE,
+        pos.y as f64 * ORE_SCALE,
+        pos.z as f64 * ORE_SCALE,
+    ]);
+
+    // Check if the noise value is above the threshhold
+    if DIAMOND_THRESHOLD.contains(&noise_ore_generation) && pos.y <= 16 {
+        BlockType::DiamondOre
+    } else if GOLD_THRESHOLD.contains(&noise_ore_generation) && pos.y <= 24 && pos.y >= 8 {
+        BlockType::GoldOre
+    } else if IRON_THRESHOLD.contains(&noise_ore_generation) && pos.y <= 48 && pos.y >= 10 {
+        BlockType::IronOre
+    } else if COAL_THRESHOLD.contains(&noise_ore_generation) && pos.y <= 64 && pos.y >= 24 {
+        BlockType::CoalOre
+    } else {
+        BlockType::Stone
     }
 }
 
@@ -558,30 +570,37 @@ fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
     // is blocks
 
     // limit the world size because it will start breaking at extreme distances
-    let border = 128; //1000000  (1048576) (2147483647)
-    if pos.x >= border || pos.x < -border || pos.z >= border || pos.z < -border  {
+    let border = 5000000;
+    if pos.x >= border || pos.x < -border || pos.z >= border || pos.z < -border {
         return BlockType::Air;
     }
 
-    // limit the world sky
+    // Limit the world sky
     if pos.y >= 255 {
         return BlockType::Air;
     }
 
-    // set bottom of the ocean
+    // Set bottom of the ocean
     if pos.y == 64 {
         return BlockType::Stone;
     }
 
-    // set bederock
+    // Set bedrock
     if pos.y == 0 {
         return BlockType::Bedrock;
     }
 
-    if pos.y > TERRAIN_HEIGHT {
-        is_block_2d(pos, perlin)
+    // Generate the 2d surface block. If it's a block, check if a cave should be generated.
+    let surface_block = surface_generation(pos, perlin);
+    if surface_block != BlockType::Air {
+        let cave_block = cave_generation(pos, perlin);
+        if cave_block == BlockType::Air {
+            cave_block
+        } else {
+            surface_block
+        }
     } else {
-        is_block_3d(pos, perlin)
+        surface_block
     }
 }
 
