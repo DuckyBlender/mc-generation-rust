@@ -17,8 +17,10 @@ pub const GOLD_THRESHOLD: Range<f64> = 0.3..0.4;
 pub const IRON_THRESHOLD: Range<f64> = 0.9..1.0;
 pub const COAL_THRESHOLD: Range<f64> = 0.4..0.5;
 
+pub const LAVA_HEIGHT: usize = 13;
+pub const WATER_HEIGHT: usize = 112;
 pub const CAVE_THRESHOLD: f64 = 0.32;
-pub const BLEND_HEIGHT: i32 = 96;
+pub const BLEND_HEIGHT: usize = 96;
 pub const FOV: f32 = 80.0;
 
 // pub const SPEED: f32 = 10.0;

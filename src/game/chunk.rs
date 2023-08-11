@@ -193,8 +193,8 @@ fn create_face(
         position[2] + chunk_position.z as f32 * CHUNK_SIZE as f32,
     ];
 
-    // Get the len of the verticies
-    let verticies_len = vertices.len() as u32;
+    // Get the len of the vertices
+    let vertices_len = vertices.len() as u32;
 
     // The normal of the face.
     let normal = match direction {
@@ -307,12 +307,12 @@ fn create_face(
 
     // Add the indices to the vector. This is clockwise order.
     indices.extend_from_slice(&[
-        verticies_len,
-        verticies_len + 1,
-        verticies_len + 2,
-        verticies_len,
-        verticies_len + 2,
-        verticies_len + 3,
+        vertices_len,
+        vertices_len + 1,
+        vertices_len + 2,
+        vertices_len,
+        vertices_len + 2,
+        vertices_len + 3,
     ]);
 }
 
@@ -503,12 +503,12 @@ fn surface_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
     // let noise_value32 = noise_value as f32;
 
     // Change values (-1, 1) -> (TERRAIN_HEIGHT, MAX_HEIGHT)
-    let cieling_margin = 40; // 40 blocks from height limit
+    let cieling_margin = 140; // 140 blocks from height limit
     let max_height = CHUNK_HEIGHT - cieling_margin;
     let height = remap(
         noise_value as f32,
-        -1., //-1.
-        12., //1. (12.)
+        -1.,
+        1.,
         BLEND_HEIGHT as f32,
         max_height as f32,
     );
@@ -536,7 +536,6 @@ fn cave_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
         pos.z as f64 * CAVE_SCALE,
     ]);
 
-    // TODO: LAVA ON AIR BLOCKS BELOW Y 11
     if cave_noise_value < CAVE_THRESHOLD {
         cave_block(pos)
     } else {
@@ -570,7 +569,7 @@ fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
     // is blocks
 
     // limit the world size because it will start breaking at extreme distances
-    let border = 5000000;
+    let border = i32::MAX;
     if pos.x >= border || pos.x < -border || pos.z >= border || pos.z < -border {
         return BlockType::Air;
     }
@@ -580,22 +579,23 @@ fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
         return BlockType::Air;
     }
 
-    // Set bottom of the ocean
-    if pos.y == 64 {
-        return BlockType::Stone;
-    }
-
     // Set bedrock
     if pos.y == 0 {
         return BlockType::Bedrock;
     }
 
     // Generate the 2d surface block. If it's a block, check if a cave should be generated.
+    // Lava on air blocks below
     let surface_block = surface_generation(pos, perlin);
     if surface_block != BlockType::Air {
         let cave_block = cave_generation(pos, perlin);
         if cave_block == BlockType::Air {
-            cave_block
+            if pos.y <= LAVA_HEIGHT as i32 {
+                BlockType::Lava
+            } else {
+                // TODO: Don't spawn caves between BLEND_HEIGHT and below WATER_HEIGHT
+                cave_block
+            }
         } else {
             surface_block
         }
