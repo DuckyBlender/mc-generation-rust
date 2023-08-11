@@ -591,7 +591,7 @@ fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
 /// TODO: Implement this into is_block in a way that makes sense.
 // fn noise_interpolation(y: i32) -> i32 {
 //     // Linear interpolation
-//     (y as f32 * 256.0 / CHUNK_HEIGHT as f32) as i32
+//     (y as f32 * 256.0 / CHUNK_HEIGHT as f32) as i32 
 // }
 
 /// Remaps a value from one range to another.
