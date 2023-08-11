@@ -85,15 +85,16 @@ fn setup(
     mut grav_scale: Query<&mut GravityScale>,
 ) {
     // Setup texture atlas
-    let texture_handle = asset_server.load("textures/spritesheet.png");
+    let texture_handle = asset_server.load("textures/blocks.png");
     let texture_atlas =
-        TextureAtlas::from_grid(texture_handle, Vec2::new(32.0, 32.0), 2, 3, None, None);
+        TextureAtlas::from_grid(texture_handle, Vec2::new(32.0, 32.0), 2, 7, None, None); //c2 r3
     commands.insert_resource(GameTextureAtlas(texture_atlas));
 
     // Sun
+    let sun_light: f32 = 0.8;
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
-            color: Color::rgb(0.98, 0.95, 0.82),
+            color: Color::rgb(0.98 * sun_light, 0.95 * sun_light, 0.82 * sun_light), //r0.98 g0.95 b0.82
             shadows_enabled: false,
             ..default()
         },
@@ -110,7 +111,7 @@ fn setup(
 
     commands.spawn((
         Camera3dBundle {
-            transform: Transform::from_translation(Vec3::new(0.0, 200.0, 0.0))
+            transform: Transform::from_translation(Vec3::new(0.0, 100.0, 0.0))
                 .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
             projection: Projection::Perspective(PerspectiveProjection {
                 fov: FOV.to_radians(),

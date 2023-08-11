@@ -80,15 +80,15 @@ pub fn update_text(
     let window = windows.single();
 
     let vsync = match window.present_mode {
-        PresentMode::AutoVsync => "Enabled",
-        PresentMode::Fifo => "Enabled",
         PresentMode::AutoNoVsync => "Disabled",
+        PresentMode::AutoVsync => "Enabled",
+        PresentMode::Fifo => "Disabled",
         PresentMode::Mailbox => "Triple buffered",
         PresentMode::Immediate => "Immediate",
     };
 
     fps_text.sections[0].value = format!(
-        "FPS: {:.2} (VSync {})\nCPU: {:.2}%, RAM: {:.2}%\nChunks loaded: {}\n\nPosition: ({:.2}, {:.2}, {:.2}) Chunk: ({}, {})\nDirection: {}",
+        "FPS: {:.2} (VSync {})\nCPU: {:.2}%, RAM: {:.2}%\nChunks loaded: {}\n\nPosition: XYZ ({:.2}, {:.2}, {:.2}) Chunk: XZ ({}, {})\nDirection: {}",
         fps,
         vsync,
         cpu,

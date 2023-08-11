@@ -7,6 +7,7 @@ use bevy::{
     },
 };
 use bevy_rapier3d::prelude::*;
+// use color_eyre::owo_colors::colors::xterm::BlueStone;
 use futures_lite::future;
 use noise::{NoiseFn, Perlin};
 use std::collections::HashSet;
@@ -65,6 +66,9 @@ fn create_chunk_mesh(chunk_position: IVec2XZ, game_texture: GameTextureAtlas) ->
                 // If the block is Air, we don't need to create any faces.
                 if block_type == BlockType::Air {
                     continue;
+                }
+
+                if block_type == BlockType::Water {
                 }
 
                 // Check the blocks around the current block to see if we need to create faces.
@@ -248,11 +252,27 @@ fn create_face(
         BlockType::Grass => {
             if direction == BlockFace::Top {
                 textures[3]
+            } else if direction == BlockFace::Bottom {
+                textures[2]
             } else {
                 textures[4]
             }
         }
-        // BlockType::Log => textures[5],
+        BlockType::Log => textures[5],
+        BlockType::Lava => textures[6],
+        // BlockType::Lava => { 
+        //     if direction == BlockFace::Top {
+        //         textures[6]
+        //     } else {
+        //         textures[1]
+        //     }
+        //  }
+        BlockType::Water => textures[7],
+        BlockType::Diamond_ore => textures[11],
+        BlockType::Gold_ore => textures[10],
+        BlockType::Iron_ore => textures[9],
+        BlockType::Coal_ore => textures[8],
+        BlockType::Sand => textures[12],
         BlockType::Air => textures[0], // todo: make this not cringe
     };
 
@@ -422,8 +442,8 @@ pub fn handle_mesh_tasks(
                         mesh: chunk_mesh_handle,
                         material: materials.add(StandardMaterial {
                             base_color_texture: Some(texture.clone()),
-                            metallic: 1.0,
-                            reflectance: 1.0,
+                            metallic: 0., //1.
+                            reflectance: 0., //1.
                             ..default()
                         }),
                         ..Default::default()
@@ -461,23 +481,35 @@ fn is_block_2d(pos: IVec3, perlin: &Perlin) -> BlockType {
     ];
     // add all the noise values together
     let noise_value = noise_values.iter().fold(0., |acc, &x| acc + x);
+    // let noise_value32 = noise_value as f32;
 
     // Change values (-1, 1) -> (TERRAIN_HEIGHT, MAX_HEIGHT)
-    let cieling_margin = 80;
+    let cieling_margin = 40; //80 (40)
     let max_height = CHUNK_HEIGHT - cieling_margin;
     let height = remap(
         noise_value as f32,
-        -1.,
-        1.,
+        -1., //-1.
+        12., //1. (12.)
         TERRAIN_HEIGHT as f32,
         max_height as f32,
     );
 
+    let ore_scale = 0.1;
+    let noise_ore_generation = perlin.get([
+        pos.x as f64 * ore_scale,
+        pos.y as f64 * ore_scale,
+        pos.z as f64 * ore_scale,
+    ]);
+
     // calculate block type given block position and height
     match pos.y {
         y if y == 0 => BlockType::Bedrock,
-        y if y < height as i32 => BlockType::Dirt,
-        y if y == height as i32 => BlockType::Grass,
+        y if y + 6 < height as i32 && noise_ore_generation < 0.08 && noise_ore_generation > 0.02 => BlockType::Coal_ore, 
+        y if y + 3 < height as i32 => BlockType::Stone,
+        y if y < height as i32 && !(y > 64 && y < 72) => BlockType::Dirt,
+        y if y == height as i32 && !(y > 64 && y < 72) => BlockType::Grass,
+        y if y <= height as i32 && (y > 64 && y < 72) => BlockType::Sand, 
+        y if y > 64 && y < 70 => BlockType::Water,
         _ => BlockType::Air,
     }
 }
@@ -486,27 +518,62 @@ fn is_block_3d(pos: IVec3, perlin: &Perlin) -> BlockType {
     // Sample the noise function at the scaled position.
     // The perlin noise needs a float value, so we need to cast the scaled position to a float.
 
+    let ore_scale = 0.1;
+    let noise_ore_generation = perlin.get([
+        pos.x as f64 * ore_scale,
+        pos.y as f64 * ore_scale,
+        pos.z as f64 * ore_scale,
+    ]);
+
     // 3d perlin noise
     let noise_value = perlin.get([
         pos.x as f64 * CAVE_SCALE,
         pos.y as f64 * CAVE_SCALE,
         pos.z as f64 * CAVE_SCALE,
     ]);
+    // let noise_value32 = noise_value as f32;
 
     // If the noise value is above the threshold, create a cube at that position.
     if noise_value < NOISE_THRESHOLD {
-        BlockType::Stone
+        if noise_ore_generation < 0.08 && noise_ore_generation > 0.07 && pos.y <= 16 {
+            BlockType::Diamond_ore
+        } else if noise_ore_generation < 0.08 && noise_ore_generation > 0.055 && pos.y <= 24 && pos.y >= 8 {
+            BlockType::Gold_ore
+        } else if noise_ore_generation < 0.08 && noise_ore_generation > 0.055 && pos.y <= 48 && pos.y >= 10 {
+            BlockType::Iron_ore
+        } else if noise_ore_generation < 0.08 && noise_ore_generation > 0.02 && pos.y <= 64 && pos.y >= 24 { //pos.y <= 64
+            BlockType::Coal_ore
+        } else {
+            BlockType::Stone
+        }
+    } else if pos.y <= 11 {
+        // set lava
+        BlockType::Lava
     } else {
         BlockType::Air
     }
 }
 
 fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
-    if pos.x > 500000 || pos.z > 500000 {
-        // limit the world size because it will start breaking at extreme distances
+    // is blocks
+
+    // limit the world size because it will start breaking at extreme distances
+    let border = 128; //1000000  (1048576) (2147483647)
+    if pos.x >= border || pos.x < -border || pos.z >= border || pos.z < -border  {
         return BlockType::Air;
     }
 
+    // limit the world sky
+    if pos.y >= 255 {
+        return BlockType::Air;
+    }
+
+    // set bottom of the ocean
+    if pos.y == 64 {
+        return BlockType::Stone;
+    }
+
+    // set bederock
     if pos.y == 0 {
         return BlockType::Bedrock;
     }
