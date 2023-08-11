@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use bevy::prelude::*;
 use bevy::window::PresentMode;
 use bevy_prototype_debug_lines::DebugLines;
@@ -22,7 +24,7 @@ pub fn debug_keyboard(
         for entity in chunk_query.iter() {
             commands.entity(entity).despawn_recursive();
         }
-        chunks_loaded.chunks = vec![];
+        chunks_loaded.chunks = HashSet::new();
     }
     if keyboard_input.just_pressed(KeyCode::G) {
         // Toggle the chunk border.
