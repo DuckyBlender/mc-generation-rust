@@ -4,10 +4,10 @@ pub const RENDER_DISTANCE: i32 = 12;
 pub const SEED: u32 = 2137;
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_HEIGHT: usize = 256;
-pub const SURFACE_SCALE: f64 = 0.008;
-pub const CAVE_SCALE: f64 = 0.06;
-pub const NOISE_THRESHOLD: f64 = 0.3;
-pub const TERRAIN_HEIGHT: i32 = 160;
+pub const SURFACE_SCALE: f64 = 0.004; //0.008
+pub const CAVE_SCALE: f64 = 0.06; //0.06
+pub const NOISE_THRESHOLD: f64 = 0.32; //0.3
+pub const TERRAIN_HEIGHT: i32 = 64; //160
 pub const FOV: f32 = 80.0;
 
 // pub const SPEED: f32 = 10.0;
@@ -61,6 +61,13 @@ pub enum BlockType {
     Dirt,
     Grass,
     Log,
+    Lava,
+    Water,
+    Diamond_ore,
+    Gold_ore,
+    Iron_ore,
+    Coal_ore,
+    Sand,
     #[default]
     Air,
 }
