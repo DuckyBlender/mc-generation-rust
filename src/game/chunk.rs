@@ -570,7 +570,7 @@ fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
         return BlockType::Stone;
     }
 
-    // set bederock
+    // set bedrock
     if pos.y == 0 {
         return BlockType::Bedrock;
     }
