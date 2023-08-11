@@ -555,7 +555,7 @@ fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
     // is blocks
 
     // limit the world size because it will start breaking at extreme distances
-    let border = 128; //1000000  (1048576) (2147483647)
+    let border = 1000000; //1000000  (1048576) (2147483647)
     if pos.x >= border || pos.x < -border || pos.z >= border || pos.z < -border  {
         return BlockType::Air;
     }
