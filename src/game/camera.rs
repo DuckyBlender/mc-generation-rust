@@ -43,6 +43,7 @@ pub fn spawn_player(mut commands: Commands) {
             | LockedAxes::ROTATION_LOCKED_Y,
         Collider::capsule_y(0.5, 0.5),
         // Collider::cuboid(0.5, 1.0, 0.5),
+        Velocity::zero(),
         Sleeping::disabled(),
         Ccd::enabled(),
 
@@ -56,7 +57,7 @@ pub fn spawn_player(mut commands: Commands) {
 
 // todo: make the query more readable
 pub fn move_player(
-    mut controllers: Query<(&mut KinematicCharacterController, &mut Transform)>,
+    mut controllers: Query<(&mut KinematicCharacterController, &mut Transform, &mut Velocity)>,
     // mut camera: Query<(&Camera3d, &mut Transform)>,
     ground_touching: Query<&KinematicCharacterControllerOutput>,
     keys: Res<Input<KeyCode>>,
@@ -103,23 +104,35 @@ pub fn move_player(
     }
 
     // Scale by time
-    new_translation *= time.delta_seconds() * SPEED;
+    new_translation *= SPEED;//time.delta_seconds() * SPEED;
 
     // Gravity is scaled by GRAVITY
     // new_translation.y -= time.delta_seconds() * GRAVITY;
 
     // Jumping
+
+    let mut jump: bool = false;
+
     if keys.just_pressed(KeyCode::Space) {
         // for output in ground_touching.iter() {
             // if output.grounded {
-                new_translation.y += JUMP_FORCE;
+                //new_translation.y += JUMP_FORCE;
             // }
         // }
+        jump = true;
     }
 
     for mut controller in controllers.iter_mut() {
-        controller.0.translation = Some(new_translation);
+        // controller.0.translation = Some(new_translation);
+        controller.2.linvel.x = new_translation.x;
+        controller.2.linvel.z = new_translation.z; 
+        
         controller.1.rotation = player_state.rot;
+
+        if jump {
+            controller.2.linvel.y = JUMP_FORCE;
+        } 
+        
         player_state.pos = controller.1.translation;
     }
 }
