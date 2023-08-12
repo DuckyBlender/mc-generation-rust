@@ -24,6 +24,7 @@ pub const BLEND_HEIGHT: usize = 96;
 pub const FOV: f32 = 80.0;
 
 pub const SPEED: f32 = 10.0;
+//TODO: Make gravity do something
 pub const GRAVITY: f32 = 9.81;
 pub const JUMP_FORCE: f32 = 10.0;
 
