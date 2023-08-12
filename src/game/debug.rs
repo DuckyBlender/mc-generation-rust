@@ -49,7 +49,7 @@ pub fn chunk_border(
     chunk_border_toggled: Res<ChunkBorderToggled>,
 ) {
     // Check if the chunk border should be drawn.
-    if !chunk_border_toggled.0 {
+    if chunk_border_toggled.0 {
         return;
     }
 

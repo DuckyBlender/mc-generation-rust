@@ -25,7 +25,7 @@ fn main() -> Result<()> {
 
     let window = WindowPlugin {
         primary_window: Some(Window {
-            title: "Bevy Voxel Demonstration".into(),
+            title: "Bevy - Voxel game".into(),
             resolution: (1280., 720.).into(),
             resizable: true,
             mode: bevy::window::WindowMode::Windowed,
@@ -50,7 +50,7 @@ fn main() -> Result<()> {
         .add_plugins(NoCameraPlayerPlugin)
         .insert_resource(MovementSettings {
             sensitivity: 0.00015, // default: 0.00012
-            speed: 120.0,         // default: 12.0
+            speed: 24.0,         // default: 12.0
         })
         // Rapier
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())

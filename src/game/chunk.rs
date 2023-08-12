@@ -509,7 +509,7 @@ fn surface_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
     let height = remap(
         noise_value as f32,
         -1., //-1.
-        8., //1.
+        6., //1.
         BLEND_HEIGHT as f32,
         max_height as f32,
     );
@@ -524,7 +524,8 @@ fn surface_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
         y if !y <= height as i32 && y < 64 => BlockType::Stone,
         y if y <= height as i32 && (y > 63 && y < 72) => BlockType::Sand,
         y if !y <= height as i32 && y == 64 => BlockType::Sand,
-        y if y > 64 && y <= WATER_HEIGHT as i32 => BlockType::Water,
+        // y if y > 64 && y <= WATER_HEIGHT as i32 => BlockType::Water,
+        y if !y <= height as i32 && y <= WATER_HEIGHT as i32 => BlockType::Water,
         _ => BlockType::Air,
     }
 }
@@ -540,17 +541,21 @@ fn cave_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
         pos.z as f64 * CAVE_SCALE,
     ]);
 
-    if cave_noise_value < CAVE_THRESHOLD || pos.y > 62 && pos.y < 70 { // TODO: Zrobic to w lepszy spssob a nir taki zjebany ze nie da sie wejsc do glebszych jaskin z powieszchni!!!
-        cave_block(pos)
-    } else {
-        BlockType::Air
-    }
-
-    // if cave_noise_value < CAVE_THRESHOLD || pos.y > 62 && cave_noise_value < CAVE_THRESHOLD_SURFACE || pos.y < 70 { // || test_water_cave { // height < 0.1 && height > 0.8 (pos.y > 62 && pos.y < 72)
+    // if cave_noise_value < CAVE_THRESHOLD { // TODO: Zrobic to w lepszy spssob a nir taki zjebany ze nie da sie wejsc do glebszych jaskin z powieszchni!!!
     //     cave_block(pos)
+    // } else if is_block(IVec3::new(pos.x, pos.y - 1, pos.z), perlin) == BlockType::Dirt {
+    //     BlockType::Grass
     // } else {
     //     BlockType::Air
     // }
+
+    if cave_noise_value < CAVE_THRESHOLD || pos.y > 62 && pos.y < 70 { // TODO: Zrobic to w lepszy spssob a nir taki zjebany ze nie da sie wejsc do glebszych jaskin z powieszchni!!!
+        cave_block(pos)
+    } else if is_block(IVec3::new(pos.x, pos.y - 1, pos.z), perlin) == BlockType::Dirt {
+        BlockType::Grass
+    } else {
+        BlockType::Air
+    }
 }
 
 fn cave_block(pos: IVec3) -> BlockType {
@@ -628,12 +633,12 @@ fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
                 cave_block
             }
         } else {
-            // cave_block
             surface_block
         }
     } else {
         surface_block
     }
+
 }
 
 /// The function that is used to interpolate between the noise values.
