@@ -1,19 +1,34 @@
 use bevy::{ecs::event::ManualEventReader, input::mouse::MouseMotion, prelude::*, tasks::Task};
-use std::collections::HashSet;
+use std::{collections::HashSet, ops::Range};
 
-pub const RENDER_DISTANCE: i32 = 12;
+pub const RENDER_DISTANCE: i32 = 17;
+pub const FOG_DISTANCE: f32 = 0.8;
 pub const SEED: u32 = 2137;
+
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_HEIGHT: usize = 256;
+
 pub const SURFACE_SCALE: f64 = 0.004; //0.008
+// pub const BLEND_SCALE: f64 = 0.02; //0.02
 pub const CAVE_SCALE: f64 = 0.06; //0.06
-pub const NOISE_THRESHOLD: f64 = 0.32; //0.3
-pub const TERRAIN_HEIGHT: i32 = 64; //160
+pub const ORE_SCALE: f64 = 0.1;
+
+pub const DIAMOND_THRESHOLD: Range<f64> = 0.0..0.002;
+pub const REDSTONE_THRESHOLD: Range<f64> = 0.45..0.48;
+pub const GOLD_THRESHOLD: Range<f64> = 0.38..0.4;
+pub const IRON_THRESHOLD: Range<f64> = 0.44..0.48;
+pub const COAL_THRESHOLD: Range<f64> = 0.58..0.7;
+
+pub const LAVA_HEIGHT: usize = 10;
+pub const WATER_HEIGHT: usize = 69;
+pub const CAVE_THRESHOLD: f64 = 0.32; //0.32
+// pub const CAVE_THRESHOLD_SURFACE: f64 = 0.2; //0.32 // TODO: Dokonczyc to
+pub const BLEND_HEIGHT: usize = 63; //85
 pub const FOV: f32 = 80.0;
 
 // pub const SPEED: f32 = 10.0;
 // pub const GRAVITY: f32 = 9.81;
-// pub const JUMP_FORCE: f32 = 2.5;
+// pub const JUMP_FORCE: f32 = 2.5; 
 
 // === COMPONENTS ===
 
@@ -64,10 +79,11 @@ pub enum BlockType {
     Log,
     Lava,
     Water,
-    Diamond_ore,
-    Gold_ore,
-    Iron_ore,
-    Coal_ore,
+    DiamondOre,
+    RedstoneOre,
+    GoldOre,
+    IronOre,
+    CoalOre,
     Sand,
     #[default]
     Air,
