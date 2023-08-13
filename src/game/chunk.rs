@@ -521,6 +521,7 @@ fn surface_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
         y if y + 3 < height as i32 => cave_block(pos),
         y if y < height as i32 && !(y > 63 && y < 72) && y > 64 => BlockType::Dirt,
         y if y == height as i32 && !(y > 63 && y < 72) && y > 64 => BlockType::Grass,
+        // y if y <= height as i32 && y == 6 => cave_generation(pos, perlin, true),
         y if !y <= height as i32 && y < 64 => BlockType::Stone,
         y if y <= height as i32 && (y > 63 && y < 72) => BlockType::Sand,
         y if !y <= height as i32 && y == 64 => BlockType::Sand,
@@ -541,18 +542,46 @@ fn cave_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
         pos.z as f64 * CAVE_SCALE,
     ]);
 
-    // if cave_noise_value < CAVE_THRESHOLD { // TODO: Zrobic to w lepszy spssob a nir taki zjebany ze nie da sie wejsc do glebszych jaskin z powieszchni!!!
-    //     cave_block(pos)
-    // } else if is_block(IVec3::new(pos.x, pos.y - 1, pos.z), perlin) == BlockType::Dirt {
-    //     BlockType::Grass
-    // } else {
-    //     BlockType::Air
-    // }
 
-    if cave_noise_value < CAVE_THRESHOLD || pos.y > 62 && pos.y < 70 { // TODO: Zrobic to w lepszy spssob a nir taki zjebany ze nie da sie wejsc do glebszych jaskin z powieszchni!!!
-        cave_block(pos)
-    } else if is_block(IVec3::new(pos.x, pos.y - 1, pos.z), perlin) == BlockType::Dirt {
-        BlockType::Grass
+    // //
+    let noise_values = vec![
+        perlin.get([
+            pos.x as f64 * 2. * SURFACE_SCALE,
+            pos.z as f64 * 2. * SURFACE_SCALE,
+        ]),
+        perlin.get([
+            pos.x as f64 * 4. * SURFACE_SCALE,
+            pos.z as f64 * 4. * SURFACE_SCALE,
+        ]),
+        perlin.get([
+            pos.x as f64 * 6. * SURFACE_SCALE,
+            pos.z as f64 * 6. * SURFACE_SCALE,
+        ]),
+    ];
+    // add all the noise values together
+    let noise_value = noise_values.iter().fold(0., |acc, &x| acc + x);
+    // let noise_value32 = noise_value as f32;
+
+    // Change values (-1, 1) -> (TERRAIN_HEIGHT, MAX_HEIGHT)
+    let cieling_margin = 100; // 140 blocks from height limit
+    let max_height = CHUNK_HEIGHT - cieling_margin;
+    let height = remap(
+        noise_value as f32,
+        -1., //-1.
+        6., //1.
+        BLEND_HEIGHT as f32,
+        max_height as f32,
+    );
+
+    let no_ocean: bool = pos.y + 10 < height as i32;
+    // //
+
+    if cave_noise_value < CAVE_THRESHOLD || !no_ocean { // TODO: Dodac jakos system generowania trawy tam gdzie jest dirt przy jaskiniach (bo to nie wyglada nieestetycznie)
+        if !(cave_noise_value < CAVE_THRESHOLD || pos.y > 62 && pos.y < 70) {
+            BlockType::Air
+        } else {
+            cave_block(pos)
+        }
     } else {
         BlockType::Air
     }
@@ -586,14 +615,6 @@ fn cave_block(pos: IVec3) -> BlockType {
 
 fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
     // is blocks
-
-    // let perlin = Perlin::new(SEED);
-    // let bedrock_scale: f64 = 0.1;
-    // let noise_bedrock_generation = perlin.get([
-    //     pos.x as f64 * bedrock_scale,
-    //     pos.y as f64 * bedrock_scale,
-    //     pos.z as f64 * bedrock_scale,
-    // ]);
 
     // limit the world size because it will start breaking at extreme distances
     let no_border = true;

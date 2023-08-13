@@ -1,0 +1,37 @@
+    // else if is_block(IVec3::new(pos.x, pos.y - 1, pos.z), perlin) == BlockType::Dirt {
+    // BlockType::Grass
+    // } else {
+    //     BlockType::Air
+    // }
+        
+    // if cave_noise_value < CAVE_THRESHOLD || pos.y > 62 && pos.y < 70 { // TODO: Zrobic to w lepszy spssob a nir taki zjebany ze nie da sie wejsc do glebszych jaskin z powieszchni!!!
+    //     return cave_block(pos);
+    // } else if is_block(IVec3::new(pos.x, pos.y - 1, pos.z), perlin) == BlockType::Dirt {
+    //     return BlockType::Grass;
+    // } else {
+    //     return BlockType::Air;
+    // }
+
+    // if cave_noise_value < CAVE_THRESHOLD || pos.y > 62 && pos.y < 70 { // TODO: Zrobic to w lepszy spssob a nir taki zjebany ze nie da sie wejsc do glebszych jaskin z powieszchni!!!
+    //     cave_block(pos)
+    // } else if is_block(IVec3::new(pos.x, pos.y - 1, pos.z), perlin) == BlockType::Dirt {
+    //     BlockType::Grass
+    // } else {
+    //     BlockType::Air
+    // }
+
+    // if cave_noise_value < CAVE_THRESHOLD { // TODO: Zrobic to w lepszy spssob a nir taki zjebany ze nie da sie wejsc do glebszych jaskin z powieszchni!!!
+    //     cave_block(pos)
+    // } else if is_block(IVec3::new(pos.x, pos.y - 1, pos.z), perlin) == BlockType::Dirt {
+    //     BlockType::Grass
+    // } else {
+    //     BlockType::Air
+    // }
+
+    // let perlin = Perlin::new(SEED);
+    // let bedrock_scale: f64 = 0.1;
+    // let noise_bedrock_generation = perlin.get([
+    //     pos.x as f64 * bedrock_scale,
+    //     pos.y as f64 * bedrock_scale,
+    //     pos.z as f64 * bedrock_scale,
+    // ]);
