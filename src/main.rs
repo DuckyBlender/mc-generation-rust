@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::thread::spawn;
 
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::diagnostic::SystemInformationDiagnosticsPlugin;
@@ -19,6 +20,7 @@ use game::debug::chunk_border;
 use game::debug::debug_keyboard;
 use game::hud::setup_hud;
 use game::hud::update_text;
+use game::camera::*;
 
 fn main() -> Result<()> {
     color_eyre::install()?;
@@ -36,6 +38,10 @@ fn main() -> Result<()> {
 
     App::new()
         .insert_resource(Msaa::Sample2)
+        .insert_resource(PlayerPos{
+            pos: Vec3::new(0.0, 0.0, 0.0),
+            rot: Quat::IDENTITY,
+        })
         .add_plugins(
             DefaultPlugins
                 .set(ImagePlugin::default_nearest())
@@ -48,6 +54,13 @@ fn main() -> Result<()> {
         .add_plugins(DebugLinesPlugin::with_depth_test(true))
         .add_plugins(AtmospherePlugin)
         .add_plugins(NoCameraPlayerPlugin)
+        // .add_plugins(RapierDebugRenderPlugin
+        //     {
+        //         enabled: true,
+        //         mode: bevy_rapier3d::render::DebugRenderMode::COLLIDER_AABBS,
+        //         ..Default::default()
+        //     }
+        // )
         .insert_resource(MovementSettings {
             sensitivity: 0.00015, // default: 0.00012
             speed: 24.0,         // default: 12.0
@@ -63,7 +76,7 @@ fn main() -> Result<()> {
         .insert_resource(ChunkBorderToggled(true))
         .init_resource::<InputState>()
         // == Systems ==
-        .add_systems(Startup, (setup, setup_hud))
+        .add_systems(Startup, (setup, setup_hud,spawn_player))
         .add_systems(
             Update,
             (
@@ -72,6 +85,10 @@ fn main() -> Result<()> {
                 update_text,
                 chunk_system,
                 handle_mesh_tasks,
+                cursor_grab_system,
+                move_player,
+                player_look,
+                update_camera
             ),
         )
         .run();

@@ -53,6 +53,12 @@ pub struct ChunksLoaded {
     pub chunks: HashSet<IVec2XZ>,
 }
 
+#[derive(Resource,Clone, Copy)]
+pub struct PlayerPos{
+    pub pos: Vec3,
+    pub rot: Quat,
+}
+
 /// Keeps track of mouse motion events, pitch, and yaw
 #[derive(Resource, Default)]
 pub struct InputState {

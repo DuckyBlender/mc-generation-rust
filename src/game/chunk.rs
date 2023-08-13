@@ -589,7 +589,6 @@ fn cave_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
 
 fn cave_block(pos: IVec3) -> BlockType {
     let ore_perlin = Perlin::new(SEED);
-
     let noise_ore_generation = ore_perlin.get([
         pos.x as f64 * ORE_SCALE,
         pos.y as f64 * ORE_SCALE,
