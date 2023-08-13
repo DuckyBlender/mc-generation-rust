@@ -26,9 +26,9 @@ pub const CAVE_THRESHOLD: f64 = 0.32; //0.32
 pub const BLEND_HEIGHT: usize = 63; //85
 pub const FOV: f32 = 80.0;
 
-// pub const SPEED: f32 = 10.0;
-// pub const GRAVITY: f32 = 9.81;
-// pub const JUMP_FORCE: f32 = 2.5; 
+pub const SPEED: f32 = 10.0;
+pub const GRAVITY: f32 = 9.81;
+pub const JUMP_FORCE: f32 = 10.0; 
 
 // === COMPONENTS ===
 

@@ -41,7 +41,8 @@ pub fn spawn_player(mut commands: Commands) {
         LockedAxes::ROTATION_LOCKED_Z
             | LockedAxes::ROTATION_LOCKED_X
             | LockedAxes::ROTATION_LOCKED_Y,
-        Collider::capsule_y(0.5, 0.5),
+        // Collider::capsule_y(0.5, 0.5),
+        Collider::cylinder(1.0, 0.5),
         // Collider::cuboid(0.5, 1.0, 0.5),
         Velocity::zero(),
         Sleeping::disabled(),
@@ -117,9 +118,10 @@ pub fn move_player(
         // for output in ground_touching.iter() {
             // if output.grounded {
                 //new_translation.y += JUMP_FORCE;
+                jump = true;
             // }
         // }
-        jump = true;
+        
     }
 
     for mut controller in controllers.iter_mut() {

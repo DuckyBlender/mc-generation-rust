@@ -126,29 +126,7 @@ fn setup(
         grav.0 = 1.0;
     }
 
-    commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_translation(Vec3::new(0.0, 100.0, 0.0))
-                .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
-            projection: Projection::Perspective(PerspectiveProjection {
-                fov: FOV.to_radians(),
-                ..default()
-            }),
-            ..default()
-        },
-        FogSettings {
-            color: Color::rgba(0.46, 0.6, 0.72, 1.0),
-            falloff: FogFalloff::Linear {
-                start: (RENDER_DISTANCE as f32 * FOG_DISTANCE) * CHUNK_SIZE as f32 * 0.8,
-                end: (RENDER_DISTANCE as f32 * FOG_DISTANCE) * CHUNK_SIZE as f32 * 0.95,
-            },
-            ..default()
-        },
-        AtmosphereCamera::default(),
-        NotShadowCaster,
-        // RigidBody::KinematicPositionBased,
-        FlyCam,
-    ));
+    
 }
 
 // this is in tests.rs
