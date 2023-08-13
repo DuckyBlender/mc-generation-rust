@@ -27,7 +27,7 @@ fn main() -> Result<()> {
 
     let window = WindowPlugin {
         primary_window: Some(Window {
-            title: "Bevy Voxel Demonstration".into(),
+            title: "Bevy - Voxel game".into(),
             resolution: (1280., 720.).into(),
             resizable: true,
             mode: bevy::window::WindowMode::Windowed,
@@ -63,7 +63,7 @@ fn main() -> Result<()> {
         // )
         .insert_resource(MovementSettings {
             sensitivity: 0.00015, // default: 0.00012
-            speed: 150.0,         // default: 12.0
+            speed: 24.0,         // default: 12.0
         })
         // Rapier
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
@@ -104,7 +104,7 @@ fn setup(
     // Setup texture atlas
     let texture_handle = asset_server.load("textures/blocks.png");
     let texture_atlas =
-        TextureAtlas::from_grid(texture_handle, Vec2::new(32.0, 32.0), 2, 7, None, None); //c2 r3
+        TextureAtlas::from_grid(texture_handle, Vec2::new(32.0, 32.0), 7, 7, None, None); //c2 r3
     commands.insert_resource(GameTextureAtlas(texture_atlas));
 
     // Sun
@@ -126,29 +126,29 @@ fn setup(
         grav.0 = 1.0;
     }
 
-    // commands.spawn((
-    //     Camera3dBundle {
-    //         transform: Transform::from_translation(Vec3::new(0.0, 100.0, 0.0))
-    //             .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
-    //         projection: Projection::Perspective(PerspectiveProjection {
-    //             fov: FOV.to_radians(),
-    //             ..default()
-    //         }),
-    //         ..default()
-    //     },
-    //     FogSettings {
-    //         color: Color::rgba(0.05, 0.05, 0.05, 1.0),
-    //         falloff: FogFalloff::Linear {
-    //             start: RENDER_DISTANCE as f32 * CHUNK_SIZE as f32 * 0.8,
-    //             end: RENDER_DISTANCE as f32 * CHUNK_SIZE as f32 * 0.95,
-    //         },
-    //         ..default()
-    //     },
-    //     AtmosphereCamera::default(),
-    //     NotShadowCaster,
-    //     // RigidBody::KinematicPositionBased,
-    //     FlyCam,
-    // ));
+    commands.spawn((
+        Camera3dBundle {
+            transform: Transform::from_translation(Vec3::new(0.0, 100.0, 0.0))
+                .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
+            projection: Projection::Perspective(PerspectiveProjection {
+                fov: FOV.to_radians(),
+                ..default()
+            }),
+            ..default()
+        },
+        FogSettings {
+            color: Color::rgba(0.46, 0.6, 0.72, 1.0),
+            falloff: FogFalloff::Linear {
+                start: (RENDER_DISTANCE as f32 * FOG_DISTANCE) * CHUNK_SIZE as f32 * 0.8,
+                end: (RENDER_DISTANCE as f32 * FOG_DISTANCE) * CHUNK_SIZE as f32 * 0.95,
+            },
+            ..default()
+        },
+        AtmosphereCamera::default(),
+        NotShadowCaster,
+        // RigidBody::KinematicPositionBased,
+        FlyCam,
+    ));
 }
 
 // this is in tests.rs

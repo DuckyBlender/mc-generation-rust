@@ -276,22 +276,23 @@ fn create_face(
             } else {
                 textures[4]
             }
-        }
-        BlockType::Log => textures[5],
-        BlockType::Lava => textures[6],
-        // BlockType::Lava => {
-        //     if direction == BlockFace::Top {
-        //         textures[6]
-        //     } else {
-        //         textures[1]
-        //     }
-        //  }
-        BlockType::Water => textures[7],
-        BlockType::DiamondOre => textures[11],
-        BlockType::GoldOre => textures[10],
-        BlockType::IronOre => textures[9],
-        BlockType::CoalOre => textures[8],
-        BlockType::Sand => textures[12],
+        },
+        BlockType::Log => {
+            if direction == BlockFace::Top || 
+            direction == BlockFace::Bottom {
+                textures[12]
+            } else {
+                textures[5]
+            }
+        },
+        BlockType::Lava => textures[21],
+        BlockType::Water => textures[22],
+        BlockType::DiamondOre => textures[15],
+        BlockType::RedstoneOre => textures[14],
+        BlockType::GoldOre => textures[9],
+        BlockType::IronOre => textures[8],
+        BlockType::CoalOre => textures[7],
+        BlockType::Sand => textures[10],
         BlockType::Air => textures[0], // todo: make this not cringe
     };
 
@@ -503,12 +504,12 @@ fn surface_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
     // let noise_value32 = noise_value as f32;
 
     // Change values (-1, 1) -> (TERRAIN_HEIGHT, MAX_HEIGHT)
-    let cieling_margin = 140; // 140 blocks from height limit
+    let cieling_margin = 100; // 140 blocks from height limit
     let max_height = CHUNK_HEIGHT - cieling_margin;
     let height = remap(
         noise_value as f32,
-        -1.,
-        1.,
+        -1., //-1.
+        6., //1.
         BLEND_HEIGHT as f32,
         max_height as f32,
     );
@@ -516,11 +517,16 @@ fn surface_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
     // calculate block type given block position and height
     match pos.y {
         y if y == 0 => BlockType::Bedrock,
-        y if y + 3 < height as i32 => BlockType::Stone,
-        y if y < height as i32 && !(y > 64 && y < 72) => BlockType::Dirt,
-        y if y == height as i32 && !(y > 64 && y < 72) => BlockType::Grass,
-        y if y <= height as i32 && (y > 64 && y < 72) => BlockType::Sand,
-        y if y > 64 && y < 70 => BlockType::Water,
+        // y if y + 3 < height as i32 => BlockType::Stone,
+        y if y + 3 < height as i32 => cave_block(pos),
+        y if y < height as i32 && !(y > 63 && y < 72) && y > 64 => BlockType::Dirt,
+        y if y == height as i32 && !(y > 63 && y < 72) && y > 64 => BlockType::Grass,
+        // y if y <= height as i32 && y == 6 => cave_generation(pos, perlin, true),
+        y if !y <= height as i32 && y < 64 => BlockType::Stone,
+        y if y <= height as i32 && (y > 63 && y < 72) => BlockType::Sand,
+        y if !y <= height as i32 && y == 64 => BlockType::Sand,
+        // y if y > 64 && y <= WATER_HEIGHT as i32 => BlockType::Water,
+        y if !y <= height as i32 && y <= WATER_HEIGHT as i32 => BlockType::Water,
         _ => BlockType::Air,
     }
 }
@@ -536,15 +542,53 @@ fn cave_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
         pos.z as f64 * CAVE_SCALE,
     ]);
 
-    if cave_noise_value < CAVE_THRESHOLD {
-        cave_block(pos)
+
+    // //
+    let noise_values = vec![
+        perlin.get([
+            pos.x as f64 * 2. * SURFACE_SCALE,
+            pos.z as f64 * 2. * SURFACE_SCALE,
+        ]),
+        perlin.get([
+            pos.x as f64 * 4. * SURFACE_SCALE,
+            pos.z as f64 * 4. * SURFACE_SCALE,
+        ]),
+        perlin.get([
+            pos.x as f64 * 6. * SURFACE_SCALE,
+            pos.z as f64 * 6. * SURFACE_SCALE,
+        ]),
+    ];
+    // add all the noise values together
+    let noise_value = noise_values.iter().fold(0., |acc, &x| acc + x);
+    // let noise_value32 = noise_value as f32;
+
+    // Change values (-1, 1) -> (TERRAIN_HEIGHT, MAX_HEIGHT)
+    let cieling_margin = 100; // 140 blocks from height limit
+    let max_height = CHUNK_HEIGHT - cieling_margin;
+    let height = remap(
+        noise_value as f32,
+        -1., //-1.
+        6., //1.
+        BLEND_HEIGHT as f32,
+        max_height as f32,
+    );
+
+    let no_ocean: bool = pos.y + 10 < height as i32;
+    // //
+
+    if cave_noise_value < CAVE_THRESHOLD || !no_ocean {
+        if !(cave_noise_value < CAVE_THRESHOLD || pos.y > 62 && pos.y < 70) {
+            BlockType::Air
+        } else {
+            cave_block(pos)
+        }
     } else {
         BlockType::Air
     }
 }
 
 fn cave_block(pos: IVec3) -> BlockType {
-    let ore_perlin = Perlin::new(69420);
+    let ore_perlin = Perlin::new(SEED);
     let noise_ore_generation = ore_perlin.get([
         pos.x as f64 * ORE_SCALE,
         pos.y as f64 * ORE_SCALE,
@@ -552,13 +596,16 @@ fn cave_block(pos: IVec3) -> BlockType {
     ]);
 
     // Check if the noise value is above the threshhold
+    // if (0.01..0.9).contains(&noise_bedrock_generation) && pos.y <= 4 {
     if DIAMOND_THRESHOLD.contains(&noise_ore_generation) && pos.y <= 16 {
         BlockType::DiamondOre
-    } else if GOLD_THRESHOLD.contains(&noise_ore_generation) && pos.y <= 24 && pos.y >= 8 {
+    } else if REDSTONE_THRESHOLD.contains(&noise_ore_generation) && pos.y <= 28 && pos.y >= 6 {
+        BlockType::RedstoneOre
+    } else if GOLD_THRESHOLD.contains(&noise_ore_generation) && pos.y <= 24 && pos.y >= 6 {
         BlockType::GoldOre
-    } else if IRON_THRESHOLD.contains(&noise_ore_generation) && pos.y <= 48 && pos.y >= 10 {
+    } else if IRON_THRESHOLD.contains(&noise_ore_generation) && pos.y <= 70 && pos.y >= 8 {
         BlockType::IronOre
-    } else if COAL_THRESHOLD.contains(&noise_ore_generation) && pos.y <= 64 && pos.y >= 24 {
+    } else if COAL_THRESHOLD.contains(&noise_ore_generation) && pos.y <= 78 && pos.y >= 24 {
         BlockType::CoalOre
     } else {
         BlockType::Stone
@@ -569,8 +616,9 @@ fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
     // is blocks
 
     // limit the world size because it will start breaking at extreme distances
-    let border = i32::MAX;
-    if pos.x >= border || pos.x < -border || pos.z >= border || pos.z < -border {
+    let no_border = true;
+    let border = 128; // i32::MAX
+    if (pos.x >= border || pos.x < -border || pos.z >= border || pos.z < -border) && !no_border {
         return BlockType::Air;
     }
 
@@ -583,6 +631,14 @@ fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
     if pos.y == 0 {
         return BlockType::Bedrock;
     }
+
+    // // Tests
+    // if pos.y == 0 {
+    //     return BlockType::Bedrock;
+    // } else {
+    //     let surface_block = surface_generation(pos, perlin);
+    //     surface_block
+    // }
 
     // Generate the 2d surface block. If it's a block, check if a cave should be generated.
     // Lava on air blocks below
@@ -602,6 +658,7 @@ fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
     } else {
         surface_block
     }
+
 }
 
 /// The function that is used to interpolate between the noise values.

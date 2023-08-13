@@ -82,7 +82,7 @@ pub fn update_text(
     let vsync = match window.present_mode {
         PresentMode::AutoNoVsync => "Disabled",
         PresentMode::AutoVsync => "Enabled",
-        PresentMode::Fifo => "Disabled",
+        PresentMode::Fifo => "Enabled",
         PresentMode::Mailbox => "Triple buffered",
         PresentMode::Immediate => "Immediate",
     };
