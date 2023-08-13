@@ -576,7 +576,7 @@ fn cave_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
     let no_ocean: bool = pos.y + 10 < height as i32;
     // //
 
-    if cave_noise_value < CAVE_THRESHOLD || !no_ocean { // TODO: Dodac jakos system generowania trawy tam gdzie jest dirt przy jaskiniach (bo to nie wyglada nieestetycznie)
+    if cave_noise_value < CAVE_THRESHOLD || !no_ocean {
         if !(cave_noise_value < CAVE_THRESHOLD || pos.y > 62 && pos.y < 70) {
             BlockType::Air
         } else {
