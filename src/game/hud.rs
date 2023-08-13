@@ -1,12 +1,8 @@
-use bevy::{
-    diagnostic::{
-        DiagnosticsStore, FrameTimeDiagnosticsPlugin, SystemInformationDiagnosticsPlugin,
-    },
-    prelude::*,
-    window::PresentMode,
-};
-
-use super::common::*;
+use crate::prelude::*;
+use bevy::diagnostic::DiagnosticsStore;
+use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+use bevy::diagnostic::SystemInformationDiagnosticsPlugin;
+use bevy::window::PresentMode;
 
 // For FPS counter
 #[derive(Component)]
@@ -108,6 +104,7 @@ pub fn setup_hud(mut commands: Commands) {
     // root node
     commands
         .spawn((
+            Name::new("HUD Root Node"),
             NodeBundle {
                 style: Style {
                     width: Val::Percent(100.0),
@@ -122,37 +119,44 @@ pub fn setup_hud(mut commands: Commands) {
             UI,
         ))
         .with_children(|parent| {
-            parent.spawn((NodeBundle {
-                style: Style {
-                    width: Val::Px(2.0),
-                    height: Val::Px(10.0),
-                    align_items: AlignItems::Center,
-                    align_content: AlignContent::Center,
-                    align_self: AlignSelf::Center,
-                    position_type: PositionType::Absolute,
+            parent.spawn((
+                Name::new("Crosshair Y"),
+                NodeBundle {
+                    style: Style {
+                        width: Val::Px(2.0),
+                        height: Val::Px(10.0),
+                        align_items: AlignItems::Center,
+                        align_content: AlignContent::Center,
+                        align_self: AlignSelf::Center,
+                        position_type: PositionType::Absolute,
 
+                        ..default()
+                    },
+                    background_color: BackgroundColor(Color::rgba(1.0, 0.0, 0.0, 1.0)),
                     ..default()
                 },
-                background_color: BackgroundColor(Color::rgba(1.0, 0.0, 0.0, 1.0)),
-                ..default()
-            },));
-            parent.spawn((NodeBundle {
-                style: Style {
-                    width: Val::Px(10.0),
-                    height: Val::Px(2.0),
-                    align_items: AlignItems::Center,
-                    align_content: AlignContent::Center,
-                    align_self: AlignSelf::Center,
-                    position_type: PositionType::Absolute,
+            ));
+            parent.spawn((
+                Name::new("Crosshair X"),
+                NodeBundle {
+                    style: Style {
+                        width: Val::Px(10.0),
+                        height: Val::Px(2.0),
+                        align_items: AlignItems::Center,
+                        align_content: AlignContent::Center,
+                        align_self: AlignSelf::Center,
+                        position_type: PositionType::Absolute,
+                        ..default()
+                    },
+                    background_color: BackgroundColor(Color::rgba(1.0, 0.0, 0.0, 1.0)),
                     ..default()
                 },
-                background_color: BackgroundColor(Color::rgba(1.0, 0.0, 0.0, 1.0)),
-                ..default()
-            },));
+            ));
         });
 
     // Text to display FPS
     commands.spawn((
+        Name::new("FPS Text"),
         TextBundle::from_section(
             "".to_string(),
             TextStyle {
@@ -170,7 +174,9 @@ pub fn setup_hud(mut commands: Commands) {
     ));
 
     // Text to display controls
-    commands.spawn((TextBundle::from_section(
+    commands.spawn((
+        Name::new("Controls Text"),
+        TextBundle::from_section(
         "P - Pause Chunk generation\nR - Reset Chunks\nG - Toggle Chunks Borders\nV - Toggle VSync"
             .to_string(),
         TextStyle {

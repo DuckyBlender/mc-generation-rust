@@ -1,19 +1,16 @@
-use bevy::tasks::AsyncComputeTaskPool;
+use std::{collections::HashSet, time::Instant};
+
 use bevy::{
-    prelude::*,
     render::{
         mesh::{Indices, VertexAttributeValues},
         render_resource::PrimitiveTopology,
     },
+    tasks::AsyncComputeTaskPool,
 };
-use bevy_rapier3d::prelude::*;
-// use color_eyre::owo_colors::colors::xterm::BlueStone;
 use futures_lite::future;
-use noise::{NoiseFn, Perlin};
-use std::collections::HashSet;
-use std::time::Instant;
+use noise::Perlin;
 
-use super::common::*;
+use crate::prelude::*;
 
 /// Creates a 16x256x16 chunk mesh using a combination of 3D and 2D Perlin noise.
 fn create_chunk_mesh(chunk_position: IVec2XZ, game_texture: GameTextureAtlas) -> Mesh {
@@ -276,15 +273,14 @@ fn create_face(
             } else {
                 textures[4]
             }
-        },
+        }
         BlockType::Log => {
-            if direction == BlockFace::Top || 
-            direction == BlockFace::Bottom {
+            if direction == BlockFace::Top || direction == BlockFace::Bottom {
                 textures[12]
             } else {
                 textures[5]
             }
-        },
+        }
         BlockType::Lava => textures[21],
         BlockType::Water => textures[22],
         BlockType::DiamondOre => textures[15],
@@ -382,6 +378,10 @@ pub fn chunk_system(
 
         // Add the task as a component to a new entity.
         commands.spawn((
+            Name::new(format!(
+                "ChunkMesh ({}, {})",
+                chunk_position.x, chunk_position.z
+            )),
             ComputeMeshTask(task),
             ChunkMesh {
                 position: chunk_position,
@@ -509,7 +509,7 @@ fn surface_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
     let height = remap(
         noise_value as f32,
         -1., //-1.
-        6., //1.
+        6.,  //1.
         BLEND_HEIGHT as f32,
         max_height as f32,
     );
@@ -542,7 +542,6 @@ fn cave_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
         pos.z as f64 * CAVE_SCALE,
     ]);
 
-
     // //
     let noise_values = vec![
         perlin.get([
@@ -568,7 +567,7 @@ fn cave_generation(pos: IVec3, perlin: &Perlin) -> BlockType {
     let height = remap(
         noise_value as f32,
         -1., //-1.
-        6., //1.
+        6.,  //1.
         BLEND_HEIGHT as f32,
         max_height as f32,
     );
@@ -658,7 +657,6 @@ fn is_block(pos: IVec3, perlin: &Perlin) -> BlockType {
     } else {
         surface_block
     }
-
 }
 
 /// The function that is used to interpolate between the noise values.

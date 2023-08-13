@@ -1,10 +1,9 @@
 use std::collections::HashSet;
 
-use bevy::prelude::*;
 use bevy::window::PresentMode;
 use bevy_prototype_debug_lines::DebugLines;
 
-use super::common::*;
+use crate::prelude::*;
 
 pub fn debug_keyboard(
     keyboard_input: Res<Input<KeyCode>>,

@@ -1,15 +1,17 @@
-use bevy::{ecs::event::ManualEventReader, input::mouse::MouseMotion, prelude::*, tasks::Task};
 use std::{collections::HashSet, ops::Range};
 
-pub const RENDER_DISTANCE: i32 = 17;
-pub const FOG_DISTANCE: f32 = 0.8;
+use bevy::{ecs::event::ManualEventReader, input::mouse::MouseMotion, tasks::Task};
+
+use crate::prelude::*;
+
+pub const RENDER_DISTANCE: i32 = 8;
 pub const SEED: u32 = 2137;
 
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_HEIGHT: usize = 256;
 
 pub const SURFACE_SCALE: f64 = 0.004; //0.008
-// pub const BLEND_SCALE: f64 = 0.02; //0.02
+                                      // pub const BLEND_SCALE: f64 = 0.02; //0.02
 pub const CAVE_SCALE: f64 = 0.06; //0.06
 pub const ORE_SCALE: f64 = 0.1;
 
@@ -22,13 +24,13 @@ pub const COAL_THRESHOLD: Range<f64> = 0.58..0.7;
 pub const LAVA_HEIGHT: usize = 10;
 pub const WATER_HEIGHT: usize = 69;
 pub const CAVE_THRESHOLD: f64 = 0.32; //0.32
-// pub const CAVE_THRESHOLD_SURFACE: f64 = 0.2; //0.32 // TODO: Dokonczyc to
+                                      // pub const CAVE_THRESHOLD_SURFACE: f64 = 0.2; //0.32 // TODO: Dokonczyc to
 pub const BLEND_HEIGHT: usize = 63; //85
 pub const FOV: f32 = 80.0;
 
-pub const SPEED: f32 = 10.0;
+pub const SPEED: f32 = 3.0;
 pub const GRAVITY: f32 = 9.81;
-pub const JUMP_FORCE: f32 = 10.0; 
+pub const JUMP_FORCE: f32 = 10.0;
 
 // === COMPONENTS ===
 
@@ -53,8 +55,8 @@ pub struct ChunksLoaded {
     pub chunks: HashSet<IVec2XZ>,
 }
 
-#[derive(Resource,Clone, Copy)]
-pub struct PlayerPos{
+#[derive(Resource, Clone, Copy)]
+pub struct PlayerPos {
     pub pos: Vec3,
     pub rot: Quat,
 }
@@ -104,6 +106,17 @@ pub enum BlockFace {
     Front,
     Back,
 }
+
+// === Macros ===
+// #[macro_export]
+// macro_rules! get_single {
+//     ($q:expr) => {
+//         match $q.get_single() {
+//             Ok(m) => m,
+//             _ => return,
+//         }
+//     };
+// }
 
 // === IVEC2XZ ===
 

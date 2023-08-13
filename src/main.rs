@@ -1,18 +1,17 @@
-use std::collections::HashSet;
-use std::thread::spawn;
-
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::diagnostic::SystemInformationDiagnosticsPlugin;
-use bevy::pbr::NotShadowCaster;
 use bevy::prelude::*;
 use bevy_atmosphere::prelude::*;
-use bevy_flycam::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_prototype_debug_lines::*;
 use bevy_rapier3d::prelude::*;
 use color_eyre::eyre::Result;
+use std::collections::HashSet;
+
+mod prelude;
 
 mod game;
+use game::camera::*;
 use game::chunk::chunk_system;
 use game::chunk::handle_mesh_tasks;
 use game::common::*;
@@ -20,7 +19,6 @@ use game::debug::chunk_border;
 use game::debug::debug_keyboard;
 use game::hud::setup_hud;
 use game::hud::update_text;
-use game::camera::*;
 
 fn main() -> Result<()> {
     color_eyre::install()?;
@@ -38,7 +36,7 @@ fn main() -> Result<()> {
 
     App::new()
         .insert_resource(Msaa::Sample2)
-        .insert_resource(PlayerPos{
+        .insert_resource(PlayerPos {
             pos: Vec3::new(0.0, 0.0, 0.0),
             rot: Quat::IDENTITY,
         })
@@ -53,7 +51,6 @@ fn main() -> Result<()> {
         .add_plugins(SystemInformationDiagnosticsPlugin)
         .add_plugins(DebugLinesPlugin::with_depth_test(true))
         .add_plugins(AtmospherePlugin)
-        .add_plugins(NoCameraPlayerPlugin)
         // .add_plugins(RapierDebugRenderPlugin
         //     {
         //         enabled: true,
@@ -61,10 +58,6 @@ fn main() -> Result<()> {
         //         ..Default::default()
         //     }
         // )
-        .insert_resource(MovementSettings {
-            sensitivity: 0.00015, // default: 0.00012
-            speed: 24.0,         // default: 12.0
-        })
         // Rapier
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
         // .add_plugins(RapierDebugRenderPlugin::default())
@@ -76,7 +69,7 @@ fn main() -> Result<()> {
         .insert_resource(ChunkBorderToggled(true))
         .init_resource::<InputState>()
         // == Systems ==
-        .add_systems(Startup, (setup, setup_hud,spawn_player))
+        .add_systems(Startup, (setup, setup_hud, spawn_player))
         .add_systems(
             Update,
             (
@@ -88,7 +81,8 @@ fn main() -> Result<()> {
                 cursor_grab_system,
                 move_player,
                 player_look,
-                update_camera
+                update_camera,
+                read_result_system,
             ),
         )
         .run();
@@ -109,24 +103,25 @@ fn setup(
 
     // Sun
     let sun_light: f32 = 0.8;
-    commands.spawn(DirectionalLightBundle {
-        directional_light: DirectionalLight {
-            color: Color::rgb(0.98 * sun_light, 0.95 * sun_light, 0.82 * sun_light), //r0.98 g0.95 b0.82
-            shadows_enabled: false,
+    commands.spawn((
+        Name::new("Sun"),
+        DirectionalLightBundle {
+            directional_light: DirectionalLight {
+                color: Color::rgb(0.98 * sun_light, 0.95 * sun_light, 0.82 * sun_light), //r0.98 g0.95 b0.82
+                shadows_enabled: false,
+                ..default()
+            },
+            transform: Transform::from_xyz(0.0, 0.0, 0.0)
+                .looking_at(Vec3::new(-0.15, -0.05, 0.25), Vec3::new(0.3, 1.0, 0.0)),
+
             ..default()
         },
-        transform: Transform::from_xyz(0.0, 0.0, 0.0)
-            .looking_at(Vec3::new(-0.15, -0.05, 0.25), Vec3::new(0.3, 1.0, 0.0)),
-
-        ..default()
-    });
+    ));
 
     // Setup gravity
     for mut grav in grav_scale.iter_mut() {
-        grav.0 = 1.0;
+        grav.0 = GRAVITY;
     }
-
-    
 }
 
 // this is in tests.rs
