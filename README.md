@@ -32,7 +32,7 @@ cargo run --release
 - [ ] Add a skybox
 - [ ] Add a surface generator
 - [ ] Multithreading (chunk generation, meshing, etc.)
-- [ ] Add a player controller (first person) [TOP PRIORITY]
+- [ ] Add a player controller (first person)
 - [ ] Blend the surface generator nicely
 - [ ] Add block breaking and placing
 - [ ] Add a UI

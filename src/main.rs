@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use bevy::{
     prelude::*,
     render::{
@@ -15,6 +17,12 @@ const CHUNK_DEPTH: usize = 32;
 const CHUNK_SIZE: usize = CHUNK_HEIGHT * CHUNK_WIDTH * CHUNK_DEPTH;
 
 const WORLD_SCALE: f64 = 0.05;
+
+#[derive(Resource)]
+struct ChunksLoaded {
+    chunks: HashSet<(IVec3, [bool; CHUNK_SIZE])>, // todo: change this to block type
+                                                  // this is for later updating the chunk when it's interacted with
+}
 
 // converting from 1d to 3d array
 macro_rules! to_3d {
@@ -36,12 +44,12 @@ macro_rules! to_1d {
 
 // voxel-generation-rust
 
-#[derive(Default, Debug, PartialEq, Clone, Copy)]
-enum BlockType {
-    #[default]
-    Air = 0,
-    Stone = 1,
-}
+// #[derive(Default, Debug, PartialEq, Clone, Copy)]
+// enum BlockType {
+//     #[default]
+//     Air = 0,
+//     Stone = 1,
+// }
 
 fn main() {
     App::new()
@@ -71,7 +79,7 @@ fn setup(
 
     // Spawn sun
     commands.spawn(DirectionalLightBundle {
-        transform: Transform::from_xyz(0.0, 0.0, 0.0),
+        transform: Transform::from_xyz(0.0, 0.0, 0.0).looking_at(Vec3::new(5.0, 5.0, 5.0), Vec3::Y),
         directional_light: DirectionalLight {
             color: Color::WHITE,
             shadows_enabled: true,
@@ -81,7 +89,7 @@ fn setup(
     });
 
     // Ambient light
-    ambient_light.color = Color::GRAY;
+    ambient_light.color = Color::WHITE;
 
     // Spawn chunks
     for x in -10..10 {
@@ -104,7 +112,6 @@ fn create_and_spawn_chunk(
     materials: &mut ResMut<Assets<StandardMaterial>>,
     chunk_position: IVec3,
 ) {
-    let now = std::time::Instant::now();
     // Create a new mesh.
     let mut chunk_mesh = Mesh::new(PrimitiveTopology::TriangleList);
     let mut vertices = Vec::new();
@@ -114,7 +121,7 @@ fn create_and_spawn_chunk(
     // For now, this function creates one chunk using 3d perlin noise
     let perlin = Perlin::new(2137);
     // 1d array for performance
-    let mut chunk: [BlockType; CHUNK_SIZE] = [BlockType::Air; CHUNK_SIZE];
+    let mut chunk: [bool; CHUNK_SIZE] = [false; CHUNK_SIZE];
     for x in 0..CHUNK_WIDTH as i32 {
         for y in 0..CHUNK_HEIGHT as i32 {
             for z in 0..CHUNK_DEPTH as i32 {
@@ -129,44 +136,28 @@ fn create_and_spawn_chunk(
                     z as f64 * WORLD_SCALE,
                 ]);
 
-                let block = if noise > 0.0 {
-                    BlockType::Stone
-                } else {
-                    BlockType::Air
-                };
+                let is_block = noise > 0.0;
 
                 // "Un-globalize" the coordinates for the chunk data
                 let x = x - chunk_position.x * CHUNK_WIDTH as i32;
                 let y = y - chunk_position.y * CHUNK_HEIGHT as i32;
                 let z = z - chunk_position.z * CHUNK_DEPTH as i32;
 
-                chunk[to_1d!(x as usize, y as usize, z as usize)] = block;
+                chunk[to_1d!(x as usize, y as usize, z as usize)] = is_block;
             }
         }
     }
 
-    // Count amount of air, dirt and stone blocks
-    let mut air = 0;
-
-    let mut stone = 0;
-    for block in &chunk {
-        match block {
-            BlockType::Air => air += 1,
-            BlockType::Stone => stone += 1,
-        }
-    }
-    info!("Air: {}, Stone: {}, Total: {}", air, stone, CHUNK_SIZE);
-
     // Chunk finished generating, now create verticies and indices
     for i in 0..CHUNK_SIZE {
-        let block = chunk[i];
-        if block == BlockType::Air {
+        let is_block = chunk[i];
+        if !is_block {
             continue;
         }
         let [x, y, z] = to_3d!(i);
 
         // top (+y)
-        if y == CHUNK_HEIGHT - 1 || chunk[to_1d!(x, y + 1, z)] == BlockType::Air {
+        if y == CHUNK_HEIGHT - 1 || !chunk[to_1d!(x, y + 1, z)] {
             vertices.push([x as f32, y as f32 + 1.0, z as f32 + 1.0]);
             vertices.push([x as f32 + 1.0, y as f32 + 1.0, z as f32 + 1.0]);
             vertices.push([x as f32 + 1.0, y as f32 + 1.0, z as f32]);
@@ -179,7 +170,7 @@ fn create_and_spawn_chunk(
             normals.push([0.0, 1.0, 0.0]);
         }
         // bottom (-y)
-        if y == 0 || chunk[to_1d!(x, y - 1, z)] == BlockType::Air {
+        if y == 0 || !chunk[to_1d!(x, y - 1, z)] {
             vertices.push([x as f32, y as f32, z as f32]);
             vertices.push([x as f32 + 1.0, y as f32, z as f32]);
             vertices.push([x as f32 + 1.0, y as f32, z as f32 + 1.0]);
@@ -191,7 +182,7 @@ fn create_and_spawn_chunk(
             normals.push([0.0, -1.0, 0.0]);
         }
         // left (-x)
-        if x == 0 || chunk[to_1d!(x - 1, y, z)] == BlockType::Air {
+        if x == 0 || !chunk[to_1d!(x - 1, y, z)] {
             vertices.push([x as f32, y as f32, z as f32 + 1.0]);
             vertices.push([x as f32, y as f32 + 1.0, z as f32 + 1.0]);
             vertices.push([x as f32, y as f32 + 1.0, z as f32]);
@@ -204,7 +195,7 @@ fn create_and_spawn_chunk(
             normals.push([-1.0, 0.0, 0.0]);
         }
         // right (+x)
-        if x == CHUNK_WIDTH - 1 || chunk[to_1d!(x + 1, y, z)] == BlockType::Air {
+        if x == CHUNK_WIDTH - 1 || !chunk[to_1d!(x + 1, y, z)] {
             vertices.push([x as f32 + 1.0, y as f32, z as f32]);
             vertices.push([x as f32 + 1.0, y as f32 + 1.0, z as f32]);
             vertices.push([x as f32 + 1.0, y as f32 + 1.0, z as f32 + 1.0]);
@@ -216,7 +207,7 @@ fn create_and_spawn_chunk(
             normals.push([1.0, 0.0, 0.0]);
         }
         // front (-z)
-        if z == 0 || chunk[to_1d!(x, y, z - 1)] == BlockType::Air {
+        if z == 0 || !chunk[to_1d!(x, y, z - 1)] {
             vertices.push([x as f32, y as f32 + 1.0, z as f32]);
             vertices.push([x as f32 + 1.0, y as f32 + 1.0, z as f32]);
             vertices.push([x as f32 + 1.0, y as f32, z as f32]);
@@ -229,7 +220,7 @@ fn create_and_spawn_chunk(
             normals.push([0.0, 0.0, -1.0]);
         }
         // back (+z)
-        if z == CHUNK_DEPTH - 1 || chunk[to_1d!(x, y, z + 1)] == BlockType::Air {
+        if z == CHUNK_DEPTH - 1 || !chunk[to_1d!(x, y, z + 1)] {
             vertices.push([x as f32, y as f32, z as f32 + 1.0]);
             vertices.push([x as f32 + 1.0, y as f32, z as f32 + 1.0]);
             vertices.push([x as f32 + 1.0, y as f32 + 1.0, z as f32 + 1.0]);
@@ -285,13 +276,15 @@ fn create_and_spawn_chunk(
     let chunk_mesh_handle: Handle<Mesh> = meshes.add(chunk_mesh);
 
     // Spawn the chunk
-    commands.spawn(PbrBundle {
-        mesh: chunk_mesh_handle,
-        material: materials.add(Color::rgb(0.5, 1.0, 0.0).into()),
-        ..Default::default()
-    });
-
-    let elapsed = now.elapsed().as_nanos();
-
-    info!("Chunk generated in {} ns", elapsed)
+    commands.spawn((
+        Name::new(format!(
+            "Chunk: {}, {}, {}",
+            chunk_position.x, chunk_position.y, chunk_position.z
+        )),
+        PbrBundle {
+            mesh: chunk_mesh_handle,
+            material: materials.add(Color::rgb(0.5, 1.0, 0.0).into()),
+            ..Default::default()
+        },
+    ));
 }
