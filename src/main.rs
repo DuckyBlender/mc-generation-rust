@@ -24,6 +24,9 @@ struct ChunksLoaded {
                                                   // this is for later updating the chunk when it's interacted with
 }
 
+#[derive(Component)]
+struct Chunk(IVec3);
+
 // converting from 1d to 3d array
 macro_rules! to_3d {
     ($index:expr) => {
@@ -65,6 +68,9 @@ fn main() {
             move_descend: KeyCode::ShiftLeft,
             ..Default::default()
         })
+        .insert_resource(ChunksLoaded {
+            chunks: HashSet::new(),
+        })
         .add_systems(Startup, setup)
         .run();
 }
@@ -74,6 +80,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut ambient_light: ResMut<AmbientLight>,
+    mut chunks_loaded: ResMut<ChunksLoaded>,
 ) {
     // Camera is spawned by plugin
 
@@ -100,23 +107,32 @@ fn setup(
                     &mut meshes,
                     &mut materials,
                     IVec3::new(x, y, z),
+                    &mut chunks_loaded,
                 );
             }
         }
     }
 }
 
-fn create_and_spawn_chunk(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+fn generate_chunk(
     chunk_position: IVec3,
-) {
-    // Create a new mesh.
-    let mut chunk_mesh = Mesh::new(PrimitiveTopology::TriangleList);
-    let mut vertices = Vec::new();
-    let mut normals = Vec::new();
-    // indices will be created later
+    chunks_loaded: &mut ResMut<ChunksLoaded>,
+) -> Option<[bool; CHUNK_SIZE]> {
+    // Check if the chunk is already loaded
+    // Get the chunk pos from the chunks_loaded struct
+    let chunk_pos = chunks_loaded
+        .chunks
+        .iter()
+        .find(|(pos, _)| *pos == chunk_position);
+
+    // If the chunk is already loaded, return
+    if chunk_pos.is_some() {
+        error!(
+            "Chunk {} {} {} is already loaded",
+            chunk_position.x, chunk_position.y, chunk_position.z
+        );
+        return None;
+    }
 
     // For now, this function creates one chunk using 3d perlin noise
     let perlin = Perlin::new(2137);
@@ -148,6 +164,33 @@ fn create_and_spawn_chunk(
         }
     }
 
+    Some(chunk)
+}
+
+fn create_and_spawn_chunk(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    chunk_position: IVec3,
+    chunks_loaded: &mut ResMut<ChunksLoaded>,
+) {
+    // Create a new mesh.
+    let mut chunk_mesh = Mesh::new(PrimitiveTopology::TriangleList);
+    let mut vertices = Vec::new();
+    let mut normals = Vec::new();
+    // indices will be created later
+
+    // Generate the chunk
+    let chunk = generate_chunk(chunk_position, chunks_loaded);
+    if chunk.is_none() {
+        error!(
+            "Chunk generation @ {} {} {} failed",
+            chunk_position.x, chunk_position.y, chunk_position.z
+        );
+        return;
+    }
+    let chunk = chunk.unwrap(); // safe to unwrap because we checked if the chunk is already loaded
+
     // Chunk finished generating, now create verticies and indices
     for i in 0..CHUNK_SIZE {
         let is_block = chunk[i];
@@ -162,7 +205,6 @@ fn create_and_spawn_chunk(
             vertices.push([x as f32 + 1.0, y as f32 + 1.0, z as f32 + 1.0]);
             vertices.push([x as f32 + 1.0, y as f32 + 1.0, z as f32]);
             vertices.push([x as f32, y as f32 + 1.0, z as f32]);
-
             // add normals
             normals.push([0.0, 1.0, 0.0]);
             normals.push([0.0, 1.0, 0.0]);
@@ -187,7 +229,6 @@ fn create_and_spawn_chunk(
             vertices.push([x as f32, y as f32 + 1.0, z as f32 + 1.0]);
             vertices.push([x as f32, y as f32 + 1.0, z as f32]);
             vertices.push([x as f32, y as f32, z as f32]);
-
             // add normals
             normals.push([-1.0, 0.0, 0.0]);
             normals.push([-1.0, 0.0, 0.0]);
@@ -212,7 +253,6 @@ fn create_and_spawn_chunk(
             vertices.push([x as f32 + 1.0, y as f32 + 1.0, z as f32]);
             vertices.push([x as f32 + 1.0, y as f32, z as f32]);
             vertices.push([x as f32, y as f32, z as f32]);
-
             // add normal
             normals.push([0.0, 0.0, -1.0]);
             normals.push([0.0, 0.0, -1.0]);
@@ -281,10 +321,14 @@ fn create_and_spawn_chunk(
             "Chunk: {}, {}, {}",
             chunk_position.x, chunk_position.y, chunk_position.z
         )),
+        Chunk(chunk_position),
         PbrBundle {
             mesh: chunk_mesh_handle,
             material: materials.add(Color::rgb(0.5, 1.0, 0.0).into()),
             ..Default::default()
         },
     ));
+
+    // Add the chunk to the loaded chunks
+    chunks_loaded.chunks.insert((chunk_position, chunk));
 }
